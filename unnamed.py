@@ -16,7 +16,7 @@ def select_size(fragments, minsize, maxsize):
 def digest(genome, p5, p3, p5_2, p3_2): 
 	delimiters = [p5+p3, p5_2+p3_2]
 	print (delimiters)
-	regexPattern = '|'.join(map(re.escape, delimiters))
+	regexPattern = '|'.join((delimiters))
 	print (regexPattern)
 	fragments = re.split(regexPattern, genome)
 
@@ -27,8 +27,8 @@ def digest(genome, p5, p3, p5_2, p3_2):
 
 		temp_p5 = copy.copy(p5)
 		temp_p3 = copy.copy(p3)
-		temp_p5_2 = copy.copy(p5_2)
-		temp_p3_2 = copy.copy(p3_2)
+	#	temp_p5_2 = copy.copy(p5_2)
+	#	temp_p3_2 = copy.copy(p3_2)
 
 		## Add the 5' part
 		if any(base in "[]" for base in temp_p5):
