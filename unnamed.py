@@ -13,8 +13,13 @@ def select_size(fragments, minsize, maxsize):
 
 	return selected_fragments
 
-def digest(genome, p5, p3):
-	fragments = re.split(p5+p3, genome)
+def digest(genome, p5, p3, p5_2, p3_2): 
+	delimiters = [p5+p3, p5_2+p3_2]
+	print (delimiters)
+	regexPattern = '|'.join(map(re.escape, delimiters))
+	print (regexPattern)
+	fragments = re.split(regexPattern, genome)
+
 	## Adding the hanging part
 	curr_len = 0
 	for i in range(0,len(fragments)-1):
@@ -22,6 +27,8 @@ def digest(genome, p5, p3):
 
 		temp_p5 = copy.copy(p5)
 		temp_p3 = copy.copy(p3)
+		temp_p5_2 = copy.copy(p5_2)
+		temp_p3_2 = copy.copy(p3_2)
 
 		## Add the 5' part
 		if any(base in "[]" for base in temp_p5):
@@ -34,6 +41,7 @@ def digest(genome, p5, p3):
 		if any(base in "[]" for base in temp_p3):
 			temp_p3 = re.sub("\[.*?\]", genome[curr_len+temp_p3.find('[')], temp_p3)
 		fragments[i+1] = temp_p3+fragments[i+1]
+
 	return fragments
 
 
@@ -76,7 +84,9 @@ def run_RE(enzyme):
 	print()
 	print(enzyme)
 	p5,p3 = restriction_sites(enzyme)
+	p5_2,p3_2 = restriction_sites('SbfI')
 	print(p5+p3)
+	#print(p5_2+p3_2)
 	### READ FROM INPUT SEQUENCE FILE ###
 	input_file  = open("input.txt", "r+")
 	# genome ="GAGAGCTGCAGCGGCGCGGCAGCAA"
@@ -84,7 +94,7 @@ def run_RE(enzyme):
 		genome = line.strip()	
 	# print(len(genome))
 	## split genome according to RE (p5 and p3)
-	fragments = digest(genome, p5, p3)
+	fragments = digest(genome, p5, p3, p5_2, p3_2)
 
 	## print the count of restriction sites
 	print("Restriction sites:"+str(len(fragments)-1))
@@ -95,11 +105,11 @@ def run_RE(enzyme):
 	# ## select the fragments based on size
 	frag_select = select_size(fragments, minsize, maxsize)
 	# # print_fragments(frag_select)
-	print("Number of fragments filtered: ",end='')
+	#print("Number of fragments filtered: ",end='')
 	print(len(frag_select))
 
 	# ## count selected fragments % in genome
-	print("Percent coverage in genome: ",end='')
+	#print("Percent coverage in genome: ",end='')
 	print(count_percent_unique(genome,frag_select))
 	return count_percent_unique(genome,frag_select)
 
@@ -115,10 +125,12 @@ if __name__ == '__main__':
 	# print(p5+p3)
 	minsize = int(input("Min fragment size: "))
 	maxsize = int(input("Max fragment size: "))
+	#enzyme_dat = raw_input("Enzyme database: ")
 	# minsize = 200
 	# maxsize = 270
+	enzyme_dat = "re.txt"
 	list_enz = {}
-	input_RE  = open("re.txt", "r+")
+	input_RE  = open(enzyme_dat, "r+")
 	for line in input_RE:
 		enz = line.strip()
 		list_enz[enz] = run_RE(enz)
