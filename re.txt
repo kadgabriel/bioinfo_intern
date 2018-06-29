@@ -1,0 +1,4 @@
+SbfI
+ApeKI
+EcoRI	
+PstI
