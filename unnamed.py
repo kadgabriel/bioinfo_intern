@@ -1,3 +1,4 @@
+#!/bin/env python
 import argparse, re, copy,  operator
 
 
@@ -13,13 +14,8 @@ def select_size(fragments, minsize, maxsize):
 
 	return selected_fragments
 
-def digest(genome, p5, p3, p5_2, p3_2): 
-	delimiters = [p5+p3, p5_2+p3_2]
-	print (delimiters)
-	regexPattern = '|'.join((delimiters))
-	print (regexPattern)
-	fragments = re.split(regexPattern, genome)
-
+def digest(genome, p5, p3):
+	fragments = re.split(p5+p3, genome)
 	## Adding the hanging part
 	curr_len = 0
 	for i in range(0,len(fragments)-1):
@@ -27,8 +23,6 @@ def digest(genome, p5, p3, p5_2, p3_2):
 
 		temp_p5 = copy.copy(p5)
 		temp_p3 = copy.copy(p3)
-	#	temp_p5_2 = copy.copy(p5_2)
-	#	temp_p3_2 = copy.copy(p3_2)
 
 		## Add the 5' part
 		if any(base in "[]" for base in temp_p5):
@@ -41,7 +35,6 @@ def digest(genome, p5, p3, p5_2, p3_2):
 		if any(base in "[]" for base in temp_p3):
 			temp_p3 = re.sub("\[.*?\]", genome[curr_len+temp_p3.find('[')], temp_p3)
 		fragments[i+1] = temp_p3+fragments[i+1]
-
 	return fragments
 
 
@@ -80,13 +73,12 @@ def restriction_sites(enzyme):
 
 	exit()
 
-def run_RE(enzyme):
+def run_RE(enzyme1, enzyme2, radseq_p):
 	print()
-	print(enzyme)
-	p5,p3 = restriction_sites(enzyme)
-	p5_2,p3_2 = restriction_sites('SbfI')
+	print(enzyme1)
+	p5,p3 = restriction_sites(enzyme1)
 	print(p5+p3)
-	#print(p5_2+p3_2)
+
 	### READ FROM INPUT SEQUENCE FILE ###
 	input_file  = open("input.txt", "r+")
 	# genome ="GAGAGCTGCAGCGGCGCGGCAGCAA"
@@ -94,10 +86,26 @@ def run_RE(enzyme):
 		genome = line.strip()	
 	# print(len(genome))
 	## split genome according to RE (p5 and p3)
-	fragments = digest(genome, p5, p3, p5_2, p3_2)
-
+	fragments = digest(genome, p5, p3)
 	## print the count of restriction sites
-	print("Restriction sites:"+str(len(fragments)-1))
+	print("Restriction sites Enzyme1:"+str(len(fragments)-1))
+	
+	if radseq_p == "2":
+		print(enzyme2)
+		p5_2,p3_2 = restriction_sites(enzyme2)
+		print(p5_2+p3_2)	
+		dd_sites = 0 
+		dd_fragments = [];
+		for i in range(0,len(fragments)):
+			dd_frag = digest(fragments[i], p5_2, p3_2)
+			dd_sites += len(dd_frag)
+			dd_fragments.extend(dd_frag)
+		
+	
+		print("Restriction sites Enzyme2:"+str(dd_sites - len(fragments)))
+		print("Total Number of Fragments:"+str(len(dd_fragments)-1))
+	
+		fragments = dd_fragments
 
 	# print all the fragments
 	# print_fragments(fragments)
@@ -113,6 +121,8 @@ def run_RE(enzyme):
 	print(count_percent_unique(genome,frag_select))
 	return count_percent_unique(genome,frag_select)
 
+
+
 def print_dict(items):
 	for key in items:
    		print("Enzyme: %s\t Percent coverage: %f" % (key[0], key[1]))
@@ -121,19 +131,27 @@ if __name__ == '__main__':
 
 	# restriction_sites('ApeKI')
 
-	
+	radseq_prot = raw_input("[1] Original RADSEQ [2] ddRAD: ")
+
 	# print(p5+p3)
-	minsize = int(input("Min fragment size: "))
-	maxsize = int(input("Max fragment size: "))
-	#enzyme_dat = raw_input("Enzyme database: ")
-	# minsize = 200
-	# maxsize = 270
-	enzyme_dat = "re.txt"
+ 	# minsize = int(input("Min fragment size: "))
+	# maxsize = int(input("Max fragment size: "))
+	minsize = 0
+	maxsize = 1000
+	
+	if radseq_prot == "1":
+		enzyme_dat = "re.txt"
+	elif radseq_prot == "2":
+		enzyme_dat = "dd_re.txt"
+	
 	list_enz = {}
 	input_RE  = open(enzyme_dat, "r+")
+
 	for line in input_RE:
 		enz = line.strip()
-		list_enz[enz] = run_RE(enz)
+		enz1,enz2 = enz.split()
+		list_enz[enz] = run_RE(enz1,enz2,radseq_prot)
+
 
 	# print(list_enz)
 	sorted_enz = sorted(list_enz.items(), key=operator.itemgetter(1),reverse=True)

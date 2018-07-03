@@ -1,4 +1,4 @@
-SbfI
-ApeKI
-EcoRI	
-PstI
+SbfI \00 
+ApeKI 2 
+EcoRI 3	
+PstI 4

@@ -1,0 +1,4 @@
+SbfI EcoRI
+ApeKI EcoRI
+EcoRI EcoRI
+PstI EcoRI
