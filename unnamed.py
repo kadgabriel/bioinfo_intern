@@ -23,10 +23,14 @@ def select_size(fragments, minsize, maxsize):
 	frag_location = selected_locations
 	return selected_fragments
 
-def digest(genome, p5, p3):
-	## split the genome into fragments
-	fragments = re.split(p5+p3, genome)
-	
+def digest(genome, p5, p3, p5_2, p3_2): 
+	delimiters = [p5+p3, p5_2+p3_2]
+	print (delimiters)
+	regexPattern = '|'.join((delimiters))
+	print (regexPattern)
+	fragments = re.split(regexPattern, genome)
+
+	## Adding the hanging part
 	curr_len = 0
 	global frag_location
 	frag_location = []
@@ -38,6 +42,7 @@ def digest(genome, p5, p3):
 
 		temp_p5 = copy.copy(p5)
 		temp_p3 = copy.copy(p3)
+
 
 		## Add the 5' part
 		if any(base in "[]" for base in temp_p5):
@@ -153,7 +158,7 @@ def run_RE(enzyme, input_genome_file):
 			
 	## split genome according to RE (p5 and p3)
 	global frag_location
-	fragments = digest(genome, p5, p3)
+	fragments = digest(genome, p5, p3,"","")
 
 	## print the number of restriction sites
 	print("Restriction sites:"+str(len(fragments)-1))
