@@ -1,8 +1,7 @@
 #!/usr/bin/python3
-
+from __future__ import print_function
 import argparse, re, copy, operator
 import sys, time
-
 
 def print_fragments(tempList):
 	for i in range(0,len(tempList)):
@@ -32,7 +31,7 @@ def digest(genome, p5, p3):
 		## Add the 5' part
 		if any(base in "[]" for base in temp_p5):
 			temp_p5 = re.sub("\[.*?\]", genome[curr_len+temp_p5.find('[')], temp_p5)
-			print(temp_p5)
+			# print(temp_p5)
 		fragments[i] = fragments[i]+temp_p5
 		curr_len += len(temp_p5)
 
@@ -173,10 +172,12 @@ def compare_gene(gene_location, fragments):
 def run_RE(enzyme, parsed, args):
 
 	print()
-	print(enzyme)
+	# print(enzyme)
+	print(enzyme,end='\t')
 	
 	p5,p3 = restriction_sites(enzyme,parsed['db'])
-	print(p5+p3)
+	# print(p5+p3)
+	# print(p5+p3,end='\t')
 
 	### READ FROM INPUT SEQUENCE FILE ###
 	input_file  = open(args.i, "r+")
@@ -191,32 +192,44 @@ def run_RE(enzyme, parsed, args):
 	fragments = digest(genome, p5, p3)
 
 	## print the number of restriction sites
-	print("Restriction sites:"+str(len(fragments)-1))
+	print(str(len(fragments)-1),end='\t')
+	# print("Restriction sites:"+str(len(fragments)-1))
 
 	# ## select the fragments based on size
 	frag_select = select_size(fragments, args.min, args.max)
 
-	print("Number of fragments filtered: ",end='')
-	print(len(frag_select))
+	# print("Number of fragments filtered: ",end='')
+	# print(len(frag_select))
+	print(len(frag_select),end='\t')
 
 	## get all gene regions and 
 	if('annotation' in parsed):
 		genes = parsed['annotation']
-		print("Number of matches in genes: "+str(compare_gene(genes,frag_select)))
+		# print("Number of matches in genes: "+str(compare_gene(genes,frag_select)))
+		print(str(compare_gene(genes,frag_select)),end='\t')
 
 	## test case, if PstI, compare the fragments and genes
 	# if(enzyme == "PstI"):
 	# 	print(compare_gene(genes))
 
 
-	# if(enzyme == "PstI"):
-	# 	output = open("ecoli2.fasta", "w+")
-	# 	for i in range(0,len(frag_select)):
-	# 		output.write(">U00096.3 Fragment ")
-	# 		output.write(str(i)+"\n")
-	# 		output.write(frag_select[i])
-	# 		output.write("\n")
-	# 	output.close()
+	if(enzyme == "MspI"):
+		output = open("ecoli2.fastq", "w+")
+		for i in range(0,len(frag_select)):
+			output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][1]+150+1)+"\n")
+			output.write(frag_select[i][0][:150])
+			output.write("\n+\n")
+			for j in range(0,150):
+				output.write("F")
+			output.write("\n")
+
+			output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][2]-150+1)+"_"+str(frag_select[i][2]+1)+"\n")
+			output.write(frag_select[i][0][-150:])
+			output.write("\n+\n")	
+			for j in range(0,150):
+				output.write("F")
+			output.write("\n")
+		output.close()
 
 	## print all 
 	# if(enzyme == "PstI"):
@@ -237,12 +250,12 @@ def run_RE(enzyme, parsed, args):
 if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser(description='RADSeq python script')
-	parser.add_argument('-i', nargs='?', default='ecoli.fasta', help='input genome sequence file (FASTA)')
+	parser.add_argument('-i', nargs='?', help='input genome sequence file (FASTA)')
 	parser.add_argument('-db', nargs='?', default='re_db.txt',  help='resteriction enzyme dabatase file. Format per line: SbfI,CCTGCA|GG')
 	parser.add_argument('-re', nargs='?', default='', help='file of list of restriction enzyme to be tested')
 	parser.add_argument('-a', nargs='?', default='', help='gene annotation file for genome')
-	parser.add_argument('-min', nargs='?', default=500, help='minimum fragment size')
-	parser.add_argument('-max', nargs='?', default=800, help='maximum fragment size')
+	parser.add_argument('-min', nargs='?', default=200, help='minimum fragment size (default 200)')
+	parser.add_argument('-max', nargs='?', default=300, help='maximum fragment size (default 300)')
 	args = parser.parse_args()
 
 	start_time = time.time()
@@ -254,6 +267,9 @@ if __name__ == '__main__':
 	parsed = {}
 
 	## catch errors for invalid input file argument
+	if args.i == None or len(args.i)==0:
+		print("Sequence file not provided")
+		raise SystemExit
 	try:
 		input_i  = open(args.i, "r+")
 	except (OSError, IOError) as e:
@@ -281,6 +297,7 @@ if __name__ == '__main__':
 	if args.re != None and len(args.re)>0:
 		try:
 			input_RE  = open(args.re, "r+")
+			print("Name \tRE sites\tFrags filtered \tMatches in gene",end='')
 			for line in input_RE:
 				enz = line.strip()
 				run_RE(enz, parsed, args)
@@ -288,6 +305,7 @@ if __name__ == '__main__':
 			print("Restriction enzyme list file is invalid or not found")
 			raise SystemExit
 	else:
+		print("Name \tRE sites \tFrags filtered \tMatches in gene",end='')
 		for key in sorted(parsed['db'].keys()):
 			run_RE(key, parsed, args)
 
