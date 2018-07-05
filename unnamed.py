@@ -2,11 +2,25 @@
 from __future__ import print_function
 import argparse, re, copy, operator
 import sys, time
+import numpy as np
 
 def print_fragments(tempList):
 	for i in range(0,len(tempList)):
 		print("[%d] \"%s\"" % (i+1,tempList[i]))
 
+def generate_gc(gc_freq, genome_size):
+
+	at_freq = 1 - gc_freq
+	nucleo = ['A', 'C', 'T', 'G']
+	weights = [at_freq/2, gc_freq/2, at_freq/2, gc_freq/2]
+	gc_sequence = ""
+
+	gc_sequence = np.random.choice(nucleo, genome_size, p=weights)
+	gen_ome = ''.join(gc_sequence)
+	output = open("genome.txt", "w+")
+	output.write(gen_ome)
+	output.close()
+	
 def print_dict(items, items2):
 	print("==============================")
 	print("Enzyme\t Percent coverage\t Number of Fragments")
@@ -281,6 +295,10 @@ if __name__ == '__main__':
 	parser.add_argument('-min', nargs='?', default=200, help='minimum fragment size (default 200)')
 	parser.add_argument('-max', nargs='?', default=300, help='maximum fragment size (default 300)')
 	parser.add_argument('-p', nargs='?', default='orig', help='radseq protocol: use ddrad for double digestion')
+	parser.add_argument('-gc', nargs='?', help='input gc frequency')
+	parser.add_argument('-dna', nargs='?', help='input dna estimated length')
+	
+	
 	args = parser.parse_args()
 
 	start_time = time.time()
@@ -288,19 +306,31 @@ if __name__ == '__main__':
 	minsize = args.min
 	maxsize = args.max
 
+	gc_freq = float(args.gc)
+	genome_length = int(args.dna)
 	input_RE = ""
 	parsed = {}
 
 	## catch errors for invalid input file argument
-	if args.i == None or len(args.i)==0:
-		print("Sequence file not provided")
+	if args.i != None and (args.gc != None and args.dna != None):
+		print("Choose only one input source")
 		raise SystemExit
+	if (args.i == None or len(args.i)==0) and (args.gc == None and args.dna == None):
+		print("Sequence file / Input not provided")
+		raise SystemExit
+	
+
+	## if unknown genome, known gc frequency 
+	if (args.gc != None and args.dna != None) and args.i == None:
+		generate_gc(gc_freq,genome_length)		
+		args.i = "genome.txt"
 	try:
 		input_i  = open(args.i, "r+")
 	except (OSError, IOError) as e:
 		print("Sequence file is invalid or not found")
 		raise SystemExit
-
+	
+	
 	## catch errors for invalid RE DB file argument
 	try:
 		input_DB  = open(args.db, "r+")
