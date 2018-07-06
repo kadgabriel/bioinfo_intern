@@ -229,17 +229,18 @@ def run_RE(enzyme, parsed, args):
 		dig_frag = [item[0] for item in fragments]
 		fragments = dd_digest(dig_frag,p5_2,p3_2)
 
+	shear_frag =[frag[:500] for frag in fragments]
+		
 	## print the number of restriction sites
-	print(str(len(fragments)-1),end='\t')
+	print(str(len(shear_frag)-1),end='\t')
 	# print("Restriction sites:"+str(len(fragments)-1))
 
 	# ## select the fragments based on size
-	frag_select = select_size(fragments, args.min, args.max)
+	frag_select = select_size(shear_frag, args.min, args.max)
 
 	# print("Number of fragments filtered: ",end='')
 	# print(len(frag_select))
 	print(len(frag_select),end='\t')
-
 	## get all gene regions and 
 	if('annotation' in parsed):
 		genes = parsed['annotation']
@@ -306,8 +307,6 @@ if __name__ == '__main__':
 	minsize = args.min
 	maxsize = args.max
 
-	gc_freq = float(args.gc)
-	genome_length = int(args.dna)
 	input_RE = ""
 	parsed = {}
 
@@ -322,6 +321,8 @@ if __name__ == '__main__':
 
 	## if unknown genome, known gc frequency 
 	if (args.gc != None and args.dna != None) and args.i == None:
+		gc_freq = float(args.gc)
+		genome_length = int(args.dna)
 		generate_gc(gc_freq,genome_length)		
 		args.i = "genome.txt"
 	try:
