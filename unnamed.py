@@ -3,23 +3,47 @@ from __future__ import print_function
 import argparse, re, copy, operator
 import sys, time
 import numpy as np
+from multiprocessing import Pool, Process
+from multiprocessing.pool import ThreadPool
 
 def print_fragments(tempList):
 	for i in range(0,len(tempList)):
 		print("[%d] \"%s\"" % (i+1,tempList[i]))
+
+def gen(x,p):
+	return x.join(p)
 
 def generate_gc(gc_freq, genome_size):
 
 	at_freq = 1 - gc_freq
 	nucleo = ['A', 'C', 'T', 'G']
 	weights = [at_freq/2, gc_freq/2, at_freq/2, gc_freq/2]
-	gc_sequence = ""
 
-	gc_sequence = np.random.choice(nucleo, genome_size, p=weights)
-	gen_ome = ''.join(gc_sequence)
+	pool = ThreadPool(32)
+	p1 = pool.apply_async(np.random.choice, (nucleo,genome_size/4,True,weights))
+	p2 = pool.apply_async(np.random.choice, (nucleo,genome_size/4,True,weights))
+	p3 = pool.apply_async(np.random.choice, (nucleo,genome_size/4,True,weights))
+	p4 = pool.apply_async(np.random.choice, (nucleo,genome_size-3*(genome_size/4),True,weights))
+	pool.close()
+
+	pool = ThreadPool(32)
+	p_1 = pool.apply_async(gen, ('',p1.get()))
+	p_2 = pool.apply_async(gen, ('',p2.get()))
+	p_3 = pool.apply_async(gen, ('',p3.get()))
+	p_4 = pool.apply_async(gen, ('',p4.get()))
+	pool.close()
+
+	pool = ThreadPool(32)
+	p_12 = pool.apply_async(gen, ('',[p_1.get(),p_2.get()]))
+	p_34 = pool.apply_async(gen, ('',[p_3.get(),p_4.get()]))
+	pool.close()
+
+	p_1234 = ''.join([p_12.get(),p_34.get()])
+
 	output = open("genome.txt", "w+")
-	output.write(gen_ome)
+	output.write(p_1234)
 	output.close()
+
 	
 def print_dict(items, items2):
 	print("==============================")
@@ -72,11 +96,11 @@ def digest(genome, p5, p3):
 def dd_digest(genome_frag, p5_2, p3_2):
 	
 	dd_sites = 0
-        dd_fragments = [];
-        for i in range(0,len(genome_frag)):
-        	dd_frag = digest(genome_frag[i], p5_2, p3_2)
-                dd_sites += len(dd_frag)
-               	dd_fragments.extend(dd_frag)
+	dd_fragments = []
+	for i in range(0,len(genome_frag)):
+		dd_frag = digest(genome_frag[i], p5_2, p3_2)
+		d_sites += len(dd_frag)
+		dd_fragments.extend(dd_frag)
 	
 	return dd_fragments
 	
@@ -195,8 +219,19 @@ def compare_gene(gene_location, fragments):
 				continue
 	return match_ctr
 
+def parse_input(input_name):
+	### READ FROM INPUT SEQUENCE FILE ###
+	input_file  = open(input_name, "r+")
 
-def run_RE(enzyme, parsed, args):
+	genome=""
+	for line in input_file:
+		if(">" in line):	## skip lines with >
+			continue
+		genome = genome.join(line.strip().rstrip())	## strip whitespaces
+	return genome
+
+
+def run_RE(enzyme, parsed, args,genome):
 
 	print()
 	# print(enzyme)
@@ -211,15 +246,8 @@ def run_RE(enzyme, parsed, args):
 	# print(p5+p3)
 	# print(p5+p3,end='\t')
 
-	### READ FROM INPUT SEQUENCE FILE ###
-	input_file  = open(args.i, "r+")
-
-	genome=""
-	for line in input_file:
-		if(">" in line):	## skip lines with >
-			continue
-		genome += line.strip().rstrip()	## strip whitespaces
-			
+	# global start_time
+	# print("\n\n--- %s seconds ---" % (time.time() - start_time))		
 	## split genome according to RE (p5 and p3)
 	fragments = digest(genome, p5, p3)
 
@@ -236,6 +264,7 @@ def run_RE(enzyme, parsed, args):
 	# print("Restriction sites:"+str(len(fragments)-1))
 
 	# ## select the fragments based on size
+	# frag_select = list(filter(lambda frag: (frag[2]-frag[1]) < maxsize and (frag[2]-frag[1]) > minsize, shear_frag))
 	frag_select = select_size(shear_frag, args.min, args.max)
 
 	# print("Number of fragments filtered: ",end='')
@@ -252,23 +281,23 @@ def run_RE(enzyme, parsed, args):
 	# 	print(compare_gene(genes))
 
 
-	if(enzyme == "MspI"):
-		output = open("ecoli2.fastq", "w+")
-		for i in range(0,len(frag_select)):
-			output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][1]+150+1)+"\n")
-			output.write(frag_select[i][0][:150])
-			output.write("\n+\n")
-			for j in range(0,150):
-				output.write("F")
-			output.write("\n")
+	# if(enzyme == "MspI"):
+	# 	output = open("ecoli2.fastq", "w+")
+	# 	for i in range(0,len(frag_select)):
+	# 		output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][1]+150+1)+"\n")
+	# 		output.write(frag_select[i][0][:150])
+	# 		output.write("\n+\n")
+	# 		for j in range(0,150):
+	# 			output.write("F")
+	# 		output.write("\n")
 
-			output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][2]-150+1)+"_"+str(frag_select[i][2]+1)+"\n")
-			output.write(frag_select[i][0][-150:])
-			output.write("\n+\n")	
-			for j in range(0,150):
-				output.write("F")
-			output.write("\n")
-		output.close()
+	# 		output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][2]-150+1)+"_"+str(frag_select[i][2]+1)+"\n")
+	# 		output.write(frag_select[i][0][-150:])
+	# 		output.write("\n+\n")	
+	# 		for j in range(0,150):
+	# 			output.write("F")
+	# 		output.write("\n")
+	# 	output.close()
 
 	## print all 
 	# if(enzyme == "PstI"):
@@ -318,18 +347,20 @@ if __name__ == '__main__':
 		print("Sequence file / Input not provided")
 		raise SystemExit
 	
-
+	genome = ""
 	## if unknown genome, known gc frequency 
 	if (args.gc != None and args.dna != None) and args.i == None:
 		gc_freq = float(args.gc)
 		genome_length = int(args.dna)
 		generate_gc(gc_freq,genome_length)		
-		args.i = "genome.txt"
-	try:
-		input_i  = open(args.i, "r+")
-	except (OSError, IOError) as e:
-		print("Sequence file is invalid or not found")
-		raise SystemExit
+		genome = parse_input('genome.txt')
+	else:
+		try:
+			input_i  = open(args.i, "r+")
+			genome = parse_input(args.i)
+		except (OSError, IOError) as e:
+			print("Sequence file is invalid or not found")
+			raise SystemExit
 	
 	
 	## catch errors for invalid RE DB file argument
@@ -343,7 +374,7 @@ if __name__ == '__main__':
 	## catch errors for invalid protocol
 	if args.p != 'orig' and args.p != 'ddrad':
 		print("Invalid RADSeq protocol. Use 'orig' for Original RADSeq, 'ddrad' for ddRADSeq")
-                raise SystemExit
+		raise SystemExit
 
 	## if there are annotations given by user, use it
 	if args.a != None and len(args.a)>0:
@@ -353,7 +384,6 @@ if __name__ == '__main__':
 		except (OSError, IOError) as e:
 			print("Annotation file is invalid or not found")
 			raise SystemExit
-	
 	## if no list of preferred REs to be tested, use everything in the database, RUN HERE
 	if args.re != None and len(args.re)>0 and args.p == 'orig':
 		try:
@@ -361,6 +391,7 @@ if __name__ == '__main__':
 			print("Name \tRE sites\tFrags filtered \tMatches in gene",end='')
 			for line in input_RE:
 				enz = line.strip()
+				# pool.apply_async(run_RE,(enz,parsed,args,genome))
 				run_RE(enz, parsed, args)
 		except (OSError, IOError) as e:
 			print("Restriction enzyme list file is invalid or not found")
@@ -370,9 +401,10 @@ if __name__ == '__main__':
 		try:
 			input_RE  = open(args.re, "r+")
 			print("Name1 Name2 \tRE sites\tFrags filtered \tMatches in gene",end='')
+			
 			for line in input_RE:
 				enz = line.strip()
-				run_RE(enz, parsed, args)
+				run_RE(enz, parsed, args,genome)
 		except (OSError, IOError) as e:
 			print("Restriction enzyme list file is invalid or not found")
 			raise SystemExit
@@ -380,7 +412,6 @@ if __name__ == '__main__':
 	else:
 		print("Name \tRE sites \tFrags filtered \tMatches in gene",end='')
 		for key in sorted(parsed['db'].keys()):
-			run_RE(key, parsed, args)
-
+			run_RE(key, parsed, args,genome)
 	print("\n\n--- %s seconds ---" % (time.time() - start_time))
 	
