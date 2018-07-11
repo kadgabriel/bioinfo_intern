@@ -91,29 +91,60 @@ def digest(genome, p5, p3):
 	new_fragments.append(temp_frag)
 	return new_fragments
 
+##      FUNCTION TO SHEAR SINGLE DIGEST FRAGMENTS
+def shear_frag(fragments, shear_len):
 
-##     	FUNCTION TO SIMULATE DOUBLE DIGESTION 
-def dd_digest(genome_frag, p5_2, p3_2):
-	
-	dd_sites = 0
-	dd_fragments = []
-	for i in range(0,len(genome_frag)):
-		dd_frag = digest(genome_frag[i], p5_2, p3_2)
-		d_sites += len(dd_frag)
-		dd_fragments.extend(dd_frag)
-	
-	return dd_fragments
-	
-##	FUNCTION TO SELECT ONLY FRAGMENTS WITHIN A GIVEN SIZE
-def select_size(fragments, minsize, maxsize):
-	## select the fragments given size
-	selected_fragments = []
-	for frag in fragments:
-		## fragment's start and end must be inside the gene region
-		if(len(frag[0]) < maxsize and len(frag[0]) > minsize):
-			selected_fragments.append(frag)
-	return selected_fragments
 
+        sheared_fragments = []
+        for frag in fragments:
+                temp_shear = []
+                temp_frag = frag[0]
+                temp_end = 0
+                frag_size = frag[2] - frag[1] + 1
+                if (frag_size > shear_len):
+                        temp_frag = frag[0][:shear_len]
+                        temp_end = frag[2] - (frag_size - shear_len)
+                temp_shear.append(temp_frag)
+                temp_shear.append(frag[1])
+                temp_shear.append(frag[2] - temp_end)
+                sheared_fragments.append(temp_shear)
+        #shear_frag =[frag[:500] for frag in fragments]
+        #print(sheared_fragments)
+        return sheared_fragments
+
+##      FUNCTION TO SIMULATE DOUBLE DIGESTION 
+def dd_digest(genome_frag, p5_2, p3_2, p5, p3):
+
+        dd_sites = 0
+        dd_fragments = [];
+        for i in range(0,len(genome_frag)):
+                dd_frag = digest(genome_frag[i], p5_2, p3_2)
+                dd_sites += len(dd_frag)
+                dd_fragments.extend(dd_frag)
+
+        ## filter fragments AB+BA
+        dd_filt_fragments = []
+        for frag in dd_fragments:
+                if (frag[0].startswith(p3_2) and frag[0].endswith(p5)) or (frag[0].startswith(p3) and frag[0].endswith(p5_2)):
+                        dd_filt_fragments.append(frag)
+
+        return dd_filt_fragments
+
+##      FUNCTION TO SELECT ONLY FRAGMENTS WITHIN A GIVEN SIZE
+def select_size(fragments, minsize, maxsize, protocol):
+        ## select the fragments given size
+        selected_fragments = []
+        for frag in fragments:
+                if protocol == 'ddrad':
+                        ## fragment's start and end must be inside the gene region
+                        if(len(frag[0]) < maxsize and len(frag[0]) > minsize):
+                                selected_fragments.append(frag)
+                else:
+                        if(len(frag[0]) > minsize):
+                                selected_fragments.append(frag)
+
+        return selected_fragments
+	
 ##	FUNCTION TO PARSE THE ENZYME DATABASE 
 ##	format:	each enzyme in separate lines
 ##		ex.	SbfI,CCTGCA|GG
@@ -227,7 +258,7 @@ def parse_input(input_name):
 	for line in input_file:
 		if(">" in line):	## skip lines with >
 			continue
-		genome = genome.join(line.strip().rstrip())	## strip whitespaces
+		genome += line.strip().rstrip() 	## strip whitespaces
 	return genome
 
 
@@ -251,21 +282,26 @@ def run_RE(enzyme, parsed, args,genome):
 	## split genome according to RE (p5 and p3)
 	fragments = digest(genome, p5, p3)
 
-	## if double digest
-	if args.p == 'ddrad':
-		p5_2, p3_2 = restriction_sites(enzyme2,parsed['db'])
-		dig_frag = [item[0] for item in fragments]
-		fragments = dd_digest(dig_frag,p5_2,p3_2)
+        ## if double digest
+        if args.p == 'ddrad':
+                p5_2, p3_2 = restriction_sites(enzyme2,parsed['db'])
+                dig_frag = [item[0] for item in fragments]
+                fragments = dd_digest(dig_frag,p5_2,p3_2,p5,p3)
+                frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
 
-	shear_frag =[frag[:500] for frag in fragments]
-		
+        ## if single digest, shear fragments
+        else:
+                frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
+                frag_select = shear_frag(frag_select,int(args.max))
+
 	## print the number of restriction sites
-	print(str(len(shear_frag)-1),end='\t')
-	# print("Restriction sites:"+str(len(fragments)-1))
+        print(str(len(fragments)-1),end='\t')
+        # print("Restriction sites:"+str(len(fragments)-1))
 
+	
 	# ## select the fragments based on size
 	# frag_select = list(filter(lambda frag: (frag[2]-frag[1]) < maxsize and (frag[2]-frag[1]) > minsize, shear_frag))
-	frag_select = select_size(shear_frag, args.min, args.max)
+	#frag_select = select_size(shear_frag, args.min, args.max)
 
 	# print("Number of fragments filtered: ",end='')
 	# print(len(frag_select))
