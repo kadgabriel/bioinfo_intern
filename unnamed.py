@@ -175,6 +175,13 @@ def parse_enzymedb(enzyme_db_file):
 
 	return list_enzymes
 
+def parse_REinput(input_RE_file):
+	input_RE  = open(input_RE_file, "r+")
+	REs = []
+	for line in input_RE:
+		enz = line.strip()
+		REs.append(enz)
+	return REs
 
 ##	PARSER TO ENZYME
 def restriction_sites(enzyme, list_enzymes):
@@ -254,19 +261,27 @@ def parse_input(input_name):
 	### READ FROM INPUT SEQUENCE FILE ###
 	input_file  = open(input_name, "r+")
 
-	genome=""
+	new_genome_name = ""
+	new_genome_seq = ""
+	list_genome = []
 	for line in input_file:
-		if(">" in line):	## skip lines with >
+		line = line.strip().rstrip()
+		if(len(line) == 0):
 			continue
-		genome += line.strip().rstrip() 	## strip whitespaces
-	return genome
+		if(">" in line):	## skip lines with >
+			list_genome.append([new_genome_name,new_genome_seq])
+			new_genome_seq =""
+			new_genome_name = line
+		new_genome_seq += line.strip().rstrip()	## strip whitespaces
+	list_genome.append([new_genome_name,new_genome_seq])		
+	return list_genome[1:]
 
 
 def run_RE(enzyme, parsed, args,genome):
 
-	print()
+	# print()
 	# print(enzyme)
-	print(enzyme,end='\t')
+	# print(enzyme,end='\t')
 
 	## if double digest
 	if args.p == 'ddrad':
@@ -282,20 +297,21 @@ def run_RE(enzyme, parsed, args,genome):
 	## split genome according to RE (p5 and p3)
 	fragments = digest(genome, p5, p3)
 
-        ## if double digest
-        if args.p == 'ddrad':
-                p5_2, p3_2 = restriction_sites(enzyme2,parsed['db'])
-                dig_frag = [item[0] for item in fragments]
-                fragments = dd_digest(dig_frag,p5_2,p3_2,p5,p3)
-                frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
+	## if double digest
+	frag_select = []
+	if args.p == 'ddrad':
+		p5_2, p3_2 = restriction_sites(enzyme2,parsed['db'])
+		dig_frag = [item[0] for item in fragments]
+		fragments = dd_digest(dig_frag,p5_2,p3_2,p5,p3)
+		frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
 
-        ## if single digest, shear fragments
-        else:
-                frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
-                frag_select = shear_frag(frag_select,int(args.max))
+	## if single digest, shear fragments
+	else:
+		frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
+		frag_select = shear_frag(frag_select,int(args.max))
 
 	## print the number of restriction sites
-        print(str(len(fragments)-1),end='\t')
+	# print(str(len(fragments)-1),end='\t')
         # print("Restriction sites:"+str(len(fragments)-1))
 
 	
@@ -305,12 +321,14 @@ def run_RE(enzyme, parsed, args,genome):
 
 	# print("Number of fragments filtered: ",end='')
 	# print(len(frag_select))
-	print(len(frag_select),end='\t')
+	# print(len(frag_select),end='\t')
 	## get all gene regions and 
 	if('annotation' in parsed):
 		genes = parsed['annotation']
 		# print("Number of matches in genes: "+str(compare_gene(genes,frag_select)))
 		print(str(compare_gene(genes,frag_select)),end='\t')
+
+	print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select)))
 
 	## test case, if PstI, compare the fragments and genes
 	# if(enzyme == "PstI"):
@@ -350,6 +368,17 @@ def run_RE(enzyme, parsed, args,genome):
 	# print(count_percent_unique(genome,frag_select))
 	return
 
+def run_genome(REs, parsed, args,list_genomes):
+	for i in range(0,len(list_genomes)):
+		genome = list_genomes[i][1]
+		print("FASTA: "+list_genomes[i][0][1:])
+		print("Name1 \tRE sites\tFrags filtered \tMatches in gene")
+		pool = Pool()
+		# print(REs)
+		for enz in REs:
+			p = Process(target=run_RE,args=(enz,parsed,args,genome))
+			p.start()
+			p.join()
 
 if __name__ == '__main__':
 
@@ -376,7 +405,7 @@ if __name__ == '__main__':
 	parsed = {}
 
 	## catch errors for invalid input file argument
-	if args.i != None and (args.gc != None and args.dna != None):
+	if args.i == None and (args.gc != None and args.dna != None):
 		print("Choose only one input source")
 		raise SystemExit
 	if (args.i == None or len(args.i)==0) and (args.gc == None and args.dna == None):
@@ -393,11 +422,12 @@ if __name__ == '__main__':
 	else:
 		try:
 			input_i  = open(args.i, "r+")
+			input_i.close()
 			genome = parse_input(args.i)
 		except (OSError, IOError) as e:
-			print("Sequence file is invalid or not found")
+			print("Sequence file "+args.i+" is invalid or not found")
 			raise SystemExit
-	
+
 	
 	## catch errors for invalid RE DB file argument
 	try:
@@ -423,31 +453,20 @@ if __name__ == '__main__':
 	## if no list of preferred REs to be tested, use everything in the database, RUN HERE
 	if args.re != None and len(args.re)>0 and args.p == 'orig':
 		try:
-			input_RE  = open(args.re, "r+")
-			print("Name \tRE sites\tFrags filtered \tMatches in gene",end='')
-			for line in input_RE:
-				enz = line.strip()
-				# pool.apply_async(run_RE,(enz,parsed,args,genome))
-				run_RE(enz, parsed, args)
+			REs  = parse_REinput(args.re)
+			run_genome(REs, parsed, args,genome)
 		except (OSError, IOError) as e:
 			print("Restriction enzyme list file is invalid or not found")
 			raise SystemExit
 
 	elif args.re != None and len(args.re)>0 and args.p == 'ddrad':
 		try:
-			input_RE  = open(args.re, "r+")
-			print("Name1 Name2 \tRE sites\tFrags filtered \tMatches in gene",end='')
-			
-			for line in input_RE:
-				enz = line.strip()
-				run_RE(enz, parsed, args,genome)
+			REs  = parse_REinput(args.re)
+			run_genome(REs, parsed, args,genome)
 		except (OSError, IOError) as e:
 			print("Restriction enzyme list file is invalid or not found")
 			raise SystemExit
 	
 	else:
-		print("Name \tRE sites \tFrags filtered \tMatches in gene",end='')
-		for key in sorted(parsed['db'].keys()):
-			run_RE(key, parsed, args,genome)
+		run_genome(sorted(parsed['db'].keys()), parsed, args,genome)
 	print("\n\n--- %s seconds ---" % (time.time() - start_time))
-	
