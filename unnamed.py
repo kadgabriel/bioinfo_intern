@@ -7,9 +7,10 @@ A python script that simulates restriction enzyme digestion (single and double),
 
 
 from __future__ import print_function
-import argparse, re, copy, operator
-import sys, time
+import argparse, re, copy, operator, importlib
+import sys, time, os, shutil, subprocess
 import numpy as np
+import remove_repeat2
 from multiprocessing import Pool, Process
 from multiprocessing.pool import ThreadPool
 
@@ -53,17 +54,17 @@ def generate_gc(gc_freq, genome_size):
 	output.write(p_1234)	## write the strings into a file
 	output.close()
 
-	
+
 def digest(genome, p5, p3):
 	"""
 		simulates the digestion process of the restriction enzymes.
 		It cuts the given genome sequence with the also given p5 and p3 sites then returns a list of fragments.
 	"""
 	fragments = re.split(p5+p3, genome)		## split the genome into fragments
-	
+
 	curr_len = 0				## temporary holder for current base in genome
 	new_fragments = []			## temporary list holder for digested fragments
-	## Adding the hanging part	
+	## Adding the hanging part
 	for i in range(0,len(fragments)-1):
 		temp_frag = []			## temporary list holder for current fragment
 		temp_start = curr_len	## take note of curr_len, it will be the start location of the fragment
@@ -157,7 +158,7 @@ def select_size(fragments, minsize, maxsize, protocol):
 				selected_fragments.append(frag)
 
 	return selected_fragments
-	
+
 
 def parse_enzymedb(enzyme_db_file):
 	"""
@@ -288,7 +289,6 @@ def compare_gene(gene_location, fragments):
 				continue
 	return match_ctr
 
-
 def parse_input(input_name):
 	"""
 		function that parses the input sequence/genome file (fasta format).
@@ -309,7 +309,7 @@ def parse_input(input_name):
 			new_genome_name = line
 		else:
 			new_genome_seq += line.strip().rstrip()	## strip whitespaces
-	list_genome.append([new_genome_name,new_genome_seq])		
+	list_genome.append([new_genome_name,new_genome_seq])
 	return list_genome[1:]
 
 
@@ -317,16 +317,17 @@ def run_RE(enzyme, parsed, args, genome):
 	"""
 		function that runs over the REs given a genome sequence. Performs the RADSeq process per RE
 	"""
-
+	results = open("output/"+enzyme+".out", "w+")
+	results.write(enzyme+"\t")
 	## if double digest
 	if args.p == 'ddrad':
 		enzyme1, enzyme2 = enzyme.split()
 		p5,p3 = restriction_sites(enzyme1,parsed['db'])
-	else:	
+	else:
 		p5,p3 = restriction_sites(enzyme,parsed['db'])
 
 	fragments = digest(genome, p5, p3)
-
+	results.write(str(len(fragments))+"\t")
 	## if double digest
 	frag_select = []
 	if args.p == 'ddrad':
@@ -340,49 +341,50 @@ def run_RE(enzyme, parsed, args, genome):
 		frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
 		frag_select = shear_frag(frag_select,int(args.max))
 
-	
+	results.write(str(len(frag_select))+"\t")
 	# ## select the fragments based on size
 	# frag_select = list(filter(lambda frag: (frag[2]-frag[1]) < maxsize and (frag[2]-frag[1]) > minsize, shear_frag))
 	#frag_select = select_size(shear_frag, args.min, args.max)
 
+	
+
+	output = open("reads/"+enzyme+"_read1.fastq", "w+")
+	output2 = open("reads/"+enzyme+"_read2.fastq", "w+")
+	for i in range(0,len(frag_select)):
+		output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
+		output.write(frag_select[i][0][:100])
+		output.write("\n+\n")
+		for j in range(0,100):
+			output.write("A")
+		output.write("\n")
+
+		output2.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
+		output2.write(frag_select[i][0][-100:])
+		output2.write("\n+\n")
+		for j in range(0,100):
+			output2.write("A")
+		output2.write("\n")
+	output.close()
+	output2.close()
+
+	shellscript = subprocess.Popen(["./bwa_aln.sh %s %s" % (args.i,enzyme)], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
+	shellscript.wait()
+
+	unique_repeats,uniq_count,rept_count = remove_repeat2.remove_XAs(enzyme)
+
+	results.write(str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats)+"\t")
 	if('annotation' in parsed):
 		genes = parsed['annotation']
 		# print("Number of matches in genes: "+str(compare_gene(genes,frag_select)))
-		print(enzyme+'\t'+str(len(fragments)-1)+'\t'+str(len(frag_select))+"\t"+str(compare_gene(genes,frag_select)))
+		hit_genes = compare_gene(genes,frag_select)
+		print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select))+"\t"+str(hit_genes))
+		results.write(str(hit_genes)+"\t")
+		results.write(str())
 	else:
-		print(enzyme+'\t'+str(len(fragments)-1)+'\t'+str(len(frag_select)))
+		print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select))+"\t"+str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats))
 
-
-	# if(enzyme == "MspI"):
-	# 	output = open("ecoli2_reads1.fastq", "w+")
-	# 	output2 = open("ecoli2_reeads2.fastq", "w+")
-	# 	for i in range(0,len(frag_select)):
-	# 		output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
-	# 		output.write(frag_select[i][0][:100])
-	# 		output.write("\n+\n")
-	# 		for j in range(0,100):
-	# 			output.write("F")
-	# 		output.write("\n")
-
-	# 		output2.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
-	# 		output2.write(frag_select[i][0][-100:])
-	# 		output2.write("\n+\n")	
-	# 		for j in range(0,100):
-	# 			output2.write("F")
-	# 		output2.write("\n")
-	# 	output.close()
-	# 	output2.close()
-
-	## print all 
-	# if(enzyme == "PstI"):
-	# 	output = open("PstI_fragments", "w+")
-	# 	for i in range(0,len(frag_select)):
-	# 		output.write("Fragment ")
-	# 		output.write(str(i)+"\n")
-	# 		output.write(frag_select[i])
-	# 		output.write("\n")
-	# 	output.close()
-
+	results.write("\n")
+	results.close()
 	return
 
 
@@ -390,6 +392,7 @@ def run_genome(REs, parsed, args,list_genomes):
 	"""
 		function that calls the run_RE function over multiple genomes/sequences
 	"""
+
 
 	for i in range(0,len(list_genomes)):
 		genome = list_genomes[i][1]
@@ -400,6 +403,7 @@ def run_genome(REs, parsed, args,list_genomes):
 			print("Name \tRE sites\tFrags filtered")
 		pool = Pool(32)
 		for enz in REs:
+			# run_RE(enz,parsed,args,genome)
 			p = Process(target=run_RE,args=(enz,parsed,args,genome))
 			p.start()
 			p.join()
@@ -418,7 +422,7 @@ if __name__ == '__main__':
 	parser.add_argument('-p', nargs='?', default='orig', help='radseq protocol: use ddrad for double digestion')
 	parser.add_argument('-gc', nargs='?', help='input gc frequency. Value must be between 0 and 1')
 	parser.add_argument('-dna', nargs='?', help='input dna estimated length')
-	
+
 	args = parser.parse_args()
 
 	start_time = time.time()
@@ -426,6 +430,16 @@ if __name__ == '__main__':
 	input_RE = ""
 	parsed = {}
 	genome = ""
+
+	importlib.import_module("remove_repeat2")
+	if(os.path.exists("reads") == True):
+		shutil.rmtree("reads")
+	os.makedirs("reads")
+
+	if(os.path.exists("output") == True):
+		shutil.rmtree("output")
+	os.makedirs("output")
+
 
 	## catch errors for invalid input file argument
 	if (args.i == None and args.gc != None and args.dna != None):
@@ -440,7 +454,7 @@ if __name__ == '__main__':
 		gc_freq = float(args.gc)
 		if(gc_freq <= 1 and gc_freq >= 0):
 			genome_length = int(args.dna)
-			generate_gc(gc_freq,genome_length)		
+			generate_gc(gc_freq,genome_length)
 			genome = parse_input('genome.txt')
 		else:
 			print("GC frequency must be between 0 and 1")
@@ -451,12 +465,16 @@ if __name__ == '__main__':
 		try:
 			input_i  = open(args.i, "r+")
 			input_i.close()
+			shellscript = subprocess.Popen(["./bwa_index.sh %s" % args.i], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
 			genome = parse_input(args.i)
+			
+			
+			# subprocess.call("./bwa_index.sh %s" % args.i,shell=)
 		except (OSError, IOError) as e:
 			print("Sequence file "+args.i+" is invalid or not found")
 			raise SystemExit
 
-	
+
 	## try to open the RE DB file, catch errors found
 	try:
 		input_DB  = open(args.db, "r+")
@@ -464,12 +482,12 @@ if __name__ == '__main__':
 	except (OSError, IOError) as e:
 		print("Restriction enzyme database file is invalid or not found")
 		raise SystemExit
-	
+
 	## catch errors for invalid protocol
 	if (args.p != 'orig' and args.p != 'ddrad'):
 		print("Invalid RADSeq protocol. Use 'orig' for Original RADSeq, 'ddrad' for ddRADSeq")
 		raise SystemExit
-	
+
 	## require RE file if protocol is ddrad
 	if (args.p == 'ddrad'):
 		if(args.re == None or len(args.re) < 1):
@@ -485,11 +503,11 @@ if __name__ == '__main__':
 			print("Annotation file is invalid or not found")
 			raise SystemExit
 
-	
-	##### running the core of the script happens here #####
 
-	## if protocol is original and RE file is given
-	## parse the RE file then call run_genome
+	##### running the core of the script happens here #####
+	shellscript.wait()
+	# if protocol is original and RE file is given
+	# parse the RE file then call run_genome
 	if (args.re != None and len(args.re) > 0 and args.p == 'orig'):
 		try:
 			REs  = parse_REinput(args.re)
@@ -507,9 +525,9 @@ if __name__ == '__main__':
 		except (OSError, IOError) as e:
 			print("Restriction enzyme list file is invalid or not found")
 			raise SystemExit
-	
+
 	## if no RE file given, use everything in the database and protocol is original by default
 	else:
 		run_genome(sorted(parsed['db'].keys()), parsed, args,genome)
-	
+
 	print("\n\n--- %s seconds ---" % (time.time() - start_time))
