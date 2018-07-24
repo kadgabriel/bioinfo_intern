@@ -29,24 +29,24 @@ def generate_gc(gc_freq, genome_size):
 	nucleo = ['A', 'C', 'T', 'G']
 	weights = [at_freq/2, gc_freq/2, at_freq/2, gc_freq/2]
 
-	pool = ThreadPool(32)	## divide generation of bases into 4 processes
-	p1 = pool.apply_async(np.random.choice, (nucleo,genome_size/4,True,weights))
-	p2 = pool.apply_async(np.random.choice, (nucleo,genome_size/4,True,weights))
-	p3 = pool.apply_async(np.random.choice, (nucleo,genome_size/4,True,weights))
-	p4 = pool.apply_async(np.random.choice, (nucleo,genome_size-3*(genome_size/4),True,weights))
-	pool.close()
+	poolx = ThreadPool(32)	## divide generation of bases into 4 processes
+	p1 = poolx.apply_async(np.random.choice, (nucleo,genome_size/4,True,weights))
+	p2 = poolx.apply_async(np.random.choice, (nucleo,genome_size/4,True,weights))
+	p3 = poolx.apply_async(np.random.choice, (nucleo,genome_size/4,True,weights))
+	p4 = poolx.apply_async(np.random.choice, (nucleo,genome_size-3*(genome_size/4),True,weights))
+	poolx.close()
 
-	pool = ThreadPool(32)	## flatten the bases into one string
-	p_1 = pool.apply_async(gen, ('',p1.get()))
-	p_2 = pool.apply_async(gen, ('',p2.get()))
-	p_3 = pool.apply_async(gen, ('',p3.get()))
-	p_4 = pool.apply_async(gen, ('',p4.get()))
-	pool.close()
+	poolx = ThreadPool(32)	## flatten the bases into one string
+	p_1 = poolx.apply_async(gen, ('',p1.get()))
+	p_2 = poolx.apply_async(gen, ('',p2.get()))
+	p_3 = poolx.apply_async(gen, ('',p3.get()))
+	p_4 = poolx.apply_async(gen, ('',p4.get()))
+	poolx.close()
 
-	pool = ThreadPool(32)	## combine strings
-	p_12 = pool.apply_async(gen, ('',[p_1.get(),p_2.get()]))
-	p_34 = pool.apply_async(gen, ('',[p_3.get(),p_4.get()]))
-	pool.close()
+	poolx = ThreadPool(32)	## combine strings
+	p_12 = poolx.apply_async(gen, ('',[p_1.get(),p_2.get()]))
+	p_34 = poolx.apply_async(gen, ('',[p_3.get(),p_4.get()]))
+	poolx.close()
 
 	p_1234 = ''.join([p_12.get(),p_34.get()])
 
@@ -245,21 +245,33 @@ def parse_gff(annotation_file, target):
 		Returns list of gene locations. Per element: [0] start of gene location [1] end of gene location
 	"""
 	input_gff = open(annotation_file, "r+")
-
+	gff = {}
 	gene_location = []
+	seq_name = ""
 	for line in input_gff:
 		parsed_line=line.strip().rstrip()	## strip whitespaces
 		if(len(parsed_line) > 0):
+			if('#' in line):
+				if(len(seq_name) == 0):
+					continue
+				else:
+					gff[seq_name] = gene_location
+					gene_location = []
+					seq_name = ""
+					continue
 			parsed_line=parsed_line.split("\t")
 			if(len(parsed_line) > 2 and parsed_line[0] != '#'):
 				## get only genes for now
+				seq_name = parsed_line[0]
 				if(parsed_line[2] == target):			
 					gene_location.append([int(parsed_line[3]),int(parsed_line[4])])	## add to gene_location the start and end
-	## exit if there are no genes parsed
-	if(len(gene_location) == 0):
-		print("Check the annotation file. Must be in GFF format or contains none of the features wanted.")
-		raise SystemExit
-	return gene_location
+	# ## exit if there are no genes parsed
+	# if(len(gene_location) == 0):
+	# 	print("Check the annotation file. Must be in GFF format or contains at least one of the features wanted.")
+	# 	raise SystemExit
+	# print(gff.keys())
+	gff[seq_name] = gene_location
+	return gff
 
 
 def compare_gene(gene_location, fragments):
@@ -278,10 +290,6 @@ def compare_gene(gene_location, fragments):
 
 			## if fragment is inside the gene region, we found a match!! else increment
 			if(gene_location[gene_ctr][0] <= (fragments[i][1]) and gene_location[gene_ctr][1] >= fragments[i][2]):
-				# print(i)
-				# print("Fragment location\t"+str([fragments[i][1],fragments[i][2]]))
-				# print("Gene location\t\t"+str(gene_location[gene_ctr]))
-				# print()
 				match_ctr += 1
 				break
 			else:
@@ -313,7 +321,7 @@ def parse_input(input_name):
 	return list_genome[1:]
 
 
-def run_RE(enzyme, parsed, args, genome):
+def run_RE(enzyme, parsed, args, genome, genome_name):
 	"""
 		function that runs over the REs given a genome sequence. Performs the RADSeq process per RE
 	"""
@@ -370,11 +378,19 @@ def run_RE(enzyme, parsed, args, genome):
 	shellscript = subprocess.Popen(["./bwa_aln.sh %s %s" % (args.i,enzyme)], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
 	shellscript.wait()
 
-	unique_repeats,uniq_count,rept_count = remove_repeat2.remove_XAs(enzyme)
+	unique_repeats = 0
+	uniq_count = 0
+	rept_count = 0
+
+	try:
+		unique_repeats,uniq_count,rept_count = remove_repeat2.remove_XAs(enzyme)
+	except:
+		pool.terminate()
+		SystemExit
 
 	results.write(str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats)+"\t")
 	if('annotation' in parsed):
-		genes = parsed['annotation']
+		genes = parsed['annotation'][genome_name]
 		# print("Number of matches in genes: "+str(compare_gene(genes,frag_select)))
 		hit_genes = compare_gene(genes,frag_select)
 		print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select))+"\t"+str(hit_genes))
@@ -392,8 +408,6 @@ def run_genome(REs, parsed, args,list_genomes):
 	"""
 		function that calls the run_RE function over multiple genomes/sequences
 	"""
-
-
 	for i in range(0,len(list_genomes)):
 		genome = list_genomes[i][1]
 		print("FASTA: "+list_genomes[i][0][1:])
@@ -401,12 +415,19 @@ def run_genome(REs, parsed, args,list_genomes):
 			print("Name \tRE sites\tFrags filtered \tMatches in gene")
 		else:
 			print("Name \tRE sites\tFrags filtered")
+		global pool
 		pool = Pool(32)
+		genome_name = list_genomes[i][0].split(' ')[0][1:]
 		for enz in REs:
 			# run_RE(enz,parsed,args,genome)
-			p = Process(target=run_RE,args=(enz,parsed,args,genome))
-			p.start()
-			p.join()
+			try:
+				p = Process(target=run_RE,args=(enz,parsed,args,genome, genome_name))
+				p.start()
+				p.join()
+			except:
+				pool.terminate()
+
+	return
 
 if __name__ == '__main__':
 
@@ -514,6 +535,8 @@ if __name__ == '__main__':
 			run_genome(REs, parsed, args,genome)
 		except (OSError, IOError) as e:
 			print("Restriction enzyme list file is invalid or not found")
+			global pool
+			pool.terminate()
 			raise SystemExit
 
 	## if protocol is ddrad and RE file is given
@@ -524,6 +547,7 @@ if __name__ == '__main__':
 			run_genome(REs, parsed, args,genome)
 		except (OSError, IOError) as e:
 			print("Restriction enzyme list file is invalid or not found")
+			pool.terminate()
 			raise SystemExit
 
 	## if no RE file given, use everything in the database and protocol is original by default
