@@ -98,6 +98,22 @@ def digest(genome, p5, p3):
 	new_fragments.append(temp_frag)
 	return new_fragments
 
+def hist_cut_site(fragments, len_genome, enzyme):
+	"""
+		function that returns the location of the cutsites in a .csv file which will be used to plot a frequency distribution along the length of the genome
+	"""
+	
+	sites_len = []
+	sites  = open("output/cut_site.csv", "a")
+	sites.write(str(enzyme)+"\t"+str(len_genome)+"\t")
+	for frag in fragments:
+		if (frag[1] == 0):
+			continue
+		sites_len.append(frag[1])
+		sites.write(str(frag[1])+"\t")
+	sites.write("\n")
+
+	return
 
 def shear_frag(fragments, shear_len):
 	"""
@@ -354,7 +370,7 @@ def run_RE(enzyme, parsed, args, genome, genome_name):
 	# frag_select = list(filter(lambda frag: (frag[2]-frag[1]) < maxsize and (frag[2]-frag[1]) > minsize, shear_frag))
 	#frag_select = select_size(shear_frag, args.min, args.max)
 
-	
+	hist_cut_site(fragments,len(genome),enzyme)
 
 	output = open("reads/"+enzyme+"_read1.fastq", "w+")
 	output2 = open("reads/"+enzyme+"_read2.fastq", "w+")
