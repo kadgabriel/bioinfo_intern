@@ -10,10 +10,9 @@ from __future__ import print_function
 import argparse, re, copy, operator, importlib
 import sys, time, os, shutil, subprocess
 import numpy as np
-import remove_repeat2
-from multiprocessing import Pool, Process
+import remove_repeat2, tojson
+from multiprocessing import Pool, Process, Queue
 from multiprocessing.pool import ThreadPool
-
 def gen(x,p):
 	"""
 		function that simply uses the join function on x and p (x.join(p))
@@ -320,117 +319,178 @@ def parse_input(input_name):
 	list_genome.append([new_genome_name,new_genome_seq])
 	return list_genome[1:]
 
+def write_csv(genome_name, fragments, enzyme):
+	csv_file = open("output/csv_"+genome_name+".csv", "a+")
+	csv_file.write(enzyme)
+	csv_file.write("\t")
+	length = [str(len(row[0])) for row in fragments]
+	joined = ','.join(length)
+	csv_file.write(joined)
+	csv_file.write("\n")
+	csv_file.close()
 
-def run_RE(enzyme, parsed, args, genome, genome_name):
+def create_json(curr, enzyme, fragments):
+	# curr[enzyme] =
+	pass
+
+def write_json(genome_name, fragments, enzyme):
+	pass
+
+def run_RE(enzyme):
 	"""
 		function that runs over the REs given a genome sequence. Performs the RADSeq process per RE
 	"""
-	results = open("output/"+enzyme+".out", "w+")
-	results.write(enzyme+"\t")
-	## if double digest
-	if args.p == 'ddrad':
-		enzyme1, enzyme2 = enzyme.split()
-		p5,p3 = restriction_sites(enzyme1,parsed['db'])
-	else:
-		p5,p3 = restriction_sites(enzyme,parsed['db'])
-
-	fragments = digest(genome, p5, p3)
-	results.write(str(len(fragments))+"\t")
-	## if double digest
-	frag_select = []
-	if args.p == 'ddrad':
-		p5_2, p3_2 = restriction_sites(enzyme2,parsed['db'])
-		dig_frag = [item[0] for item in fragments]
-		fragments = dd_digest(dig_frag,p5_2,p3_2,p5,p3)
-		frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
-
-	## if single digest, shear fragments
-	else:
-		frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
-		frag_select = shear_frag(frag_select,int(args.max))
-
-	results.write(str(len(frag_select))+"\t")
-	# ## select the fragments based on size
-	# frag_select = list(filter(lambda frag: (frag[2]-frag[1]) < maxsize and (frag[2]-frag[1]) > minsize, shear_frag))
-	#frag_select = select_size(shear_frag, args.min, args.max)
-
-	
-
-	output = open("reads/"+enzyme+"_read1.fastq", "w+")
-	output2 = open("reads/"+enzyme+"_read2.fastq", "w+")
-	for i in range(0,len(frag_select)):
-		output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
-		output.write(frag_select[i][0][:100])
-		output.write("\n+\n")
-		for j in range(0,100):
-			output.write("A")
-		output.write("\n")
-
-		output2.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
-		output2.write(frag_select[i][0][-100:])
-		output2.write("\n+\n")
-		for j in range(0,100):
-			output2.write("A")
-		output2.write("\n")
-	output.close()
-	output2.close()
-
-	shellscript = subprocess.Popen(["./bwa_aln.sh %s %s" % (args.i,enzyme)], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
-	shellscript.wait()
-
-	unique_repeats = 0
-	uniq_count = 0
-	rept_count = 0
-
 	try:
-		unique_repeats,uniq_count,rept_count = remove_repeat2.remove_XAs(enzyme)
+		global parsed
+		global args
+		global genome
+		global genome_name
+		results = open("output/"+enzyme+".out", "w+")
+		results.write(enzyme+"\t")
+		## if double digest
+		if args.p == 'ddrad':
+			enzyme1, enzyme2 = enzyme.split()
+			p5,p3 = restriction_sites(enzyme1,parsed['db'])
+		else:
+			p5,p3 = restriction_sites(enzyme,parsed['db'])
+
+		fragments = digest(genome, p5, p3)
+		results.write(str(len(fragments))+"\t")
+		## if double digest
+		frag_select = []
+		if args.p == 'ddrad':
+			p5_2, p3_2 = restriction_sites(enzyme2,parsed['db'])
+			dig_frag = [item[0] for item in fragments]
+			fragments = dd_digest(dig_frag,p5_2,p3_2,p5,p3)
+			frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
+
+		## if single digest, shear fragments
+		else:
+			frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
+			frag_select = shear_frag(frag_select,int(args.max))
+
+		results.write(str(len(frag_select))+"\t")
+		# ## select the fragments based on size
+		# frag_select = list(filter(lambda frag: (frag[2]-frag[1]) < maxsize and (frag[2]-frag[1]) > minsize, shear_frag))
+		#frag_select = select_size(shear_frag, args.min, args.max)
+
+		write_csv(genome_name, fragments, enzyme)
+
+		output = open("reads/"+enzyme+"_read1.fastq", "w+")
+		output2 = open("reads/"+enzyme+"_read2.fastq", "w+")
+		for i in range(0,len(frag_select)):
+			output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
+			output.write(frag_select[i][0][:100])
+			output.write("\n+\n")
+			for j in range(0,100):
+				output.write("A")
+			output.write("\n")
+
+			output2.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
+			output2.write(frag_select[i][0][-100:])
+			output2.write("\n+\n")
+			for j in range(0,100):
+				output2.write("A")
+			output2.write("\n")
+		output.close()
+		output2.close()
+
+		shellscript = subprocess.Popen(["./bwa_aln.sh %s %s" % (args.i,enzyme)], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
+		shellscript.wait()
+
+		unique_repeats = 0
+		uniq_count = 0
+		rept_count = 0
+
+		try:
+			unique_repeats,uniq_count,rept_count = remove_repeat2.remove_XAs(enzyme)
+		except:
+			pool.terminate()
+			raise Exception("Close")
+			raise SystemExit
+
+		results.write(str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats)+"\t")
+		if('annotation' in parsed):
+			genes = parsed['annotation'][genome_name]
+			# print("Number of matches in genes: "+str(compare_gene(genes,frag_select)))
+			hit_genes = compare_gene(genes,frag_select)
+			print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select))+"\t"+str(hit_genes))
+			results.write(str(hit_genes)+"\t")
+			results.write(str())
+		else:
+			print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select))+"\t"+str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats))
+
+		results.write("\n")
+		results.close()
+
 	except:
 		pool.terminate()
-		SystemExit
-
-	results.write(str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats)+"\t")
-	if('annotation' in parsed):
-		genes = parsed['annotation'][genome_name]
-		# print("Number of matches in genes: "+str(compare_gene(genes,frag_select)))
-		hit_genes = compare_gene(genes,frag_select)
-		print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select))+"\t"+str(hit_genes))
-		results.write(str(hit_genes)+"\t")
-		results.write(str())
-	else:
-		print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select))+"\t"+str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats))
-
-	results.write("\n")
-	results.close()
+		raise Exception("Close pool")
 	return
 
 
-def run_genome(REs, parsed, args,list_genomes):
+def run_genome(REs,list_genomes):
 	"""
 		function that calls the run_RE function over multiple genomes/sequences
 	"""
+	genome_name_file = open("output/genome_names.txt", "w+")
+	RE_file = open("output/RE.txt", "w+")
+	RE_file.write('\n'.join(REs))
+	RE_file.close()
 	for i in range(0,len(list_genomes)):
+		global genome
+		global genome_name
+
 		genome = list_genomes[i][1]
 		print("FASTA: "+list_genomes[i][0][1:])
 		if('annotation' in parsed):
 			print("Name \tRE sites\tFrags filtered \tMatches in gene")
 		else:
 			print("Name \tRE sites\tFrags filtered")
+		genome_name = list_genomes[i][0].split(' ')[0][1:]
+		genome_name_file.write(list_genomes[i][0].split(',')[0][1:]+"\n")
+		# global
+		csv_file = open("output/csv_"+genome_name+".csv", "w+")
+		csv_file.close()
 		global pool
 		pool = Pool(32)
-		genome_name = list_genomes[i][0].split(' ')[0][1:]
-		for enz in REs:
-			# run_RE(enz,parsed,args,genome)
-			try:
-				p = Process(target=run_RE,args=(enz,parsed,args,genome, genome_name))
-				p.start()
-				p.join()
-			except:
-				pool.terminate()
+		pool.map(run_RE,[enz for enz in REs])
+		# global json
+		# json = 
+		# for enz in REs:
+		# 	run_RE(enz,parsed,args,genome, genome_name)
+		# 	try:
+		# 		pool.apply(run_RE, (enz,parsed,args,genome, genome_name))
+		# 		# p = Process(target=run_RE,args=(enz,parsed,args,genome, genome_name))
+		# 		# p.start()
+		# 		# p.join()
+		# 	except TypeError:
+		# 		break
+		# 	except KeyboardInterrupt:
+		# 		break
+		# 	except Exception:
+		# 		break
+		# 	except:
+		# 		break
 
+		pool.close()
+		pool.terminate()
+
+		with open("output/"+genome_name+".txt",'wb') as wfd:
+		    for f in ["output/"+keys+".out" for keys in sorted(parsed['db'].keys())]:
+				with open(f,'rb') as fd:
+					shutil.copyfileobj(fd, wfd, 1024*1024*10)
+				os.remove(f)
+
+		importlib.import_module("tojson")
+		tojson.convert_json(genome_name)
+		os.remove("output/csv_"+genome_name+".csv")
+	genome_name_file.close()
 	return
 
 if __name__ == '__main__':
-
+	global args
+	global parsed
 	## argument parser
 	parser = argparse.ArgumentParser(description='RADSeq python script')
 	parser.add_argument('-i', nargs='?', help='input genome sequence file (FASTA)')
@@ -458,8 +518,12 @@ if __name__ == '__main__':
 	os.makedirs("reads")
 
 	if(os.path.exists("output") == True):
-		shutil.rmtree("output")
-	os.makedirs("output")
+		filelist = [ f for f in os.listdir("output") if f.endswith(".out") ]
+		for f in filelist:
+			os.remove(os.path.join("output", f))
+		# shutil.rmtree("output")
+	else:
+		os.makedirs("output")
 
 
 	## catch errors for invalid input file argument
@@ -487,10 +551,7 @@ if __name__ == '__main__':
 			input_i  = open(args.i, "r+")
 			input_i.close()
 			shellscript = subprocess.Popen(["./bwa_index.sh %s" % args.i], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
-			genome = parse_input(args.i)
-			
-			
-			# subprocess.call("./bwa_index.sh %s" % args.i,shell=)
+			genome = parse_input(args.i)			
 		except (OSError, IOError) as e:
 			print("Sequence file "+args.i+" is invalid or not found")
 			raise SystemExit
@@ -532,10 +593,9 @@ if __name__ == '__main__':
 	if (args.re != None and len(args.re) > 0 and args.p == 'orig'):
 		try:
 			REs  = parse_REinput(args.re)
-			run_genome(REs, parsed, args,genome)
+			run_genome(REs, genome)
 		except (OSError, IOError) as e:
 			print("Restriction enzyme list file is invalid or not found")
-			global pool
 			pool.terminate()
 			raise SystemExit
 
@@ -544,7 +604,7 @@ if __name__ == '__main__':
 	elif (args.re != None and len(args.re) > 0 and args.p == 'ddrad'):
 		try:
 			REs  = parse_REinput(args.re)
-			run_genome(REs, parsed, args,genome)
+			run_genome(REs, genome)
 		except (OSError, IOError) as e:
 			print("Restriction enzyme list file is invalid or not found")
 			pool.terminate()
@@ -552,6 +612,6 @@ if __name__ == '__main__':
 
 	## if no RE file given, use everything in the database and protocol is original by default
 	else:
-		run_genome(sorted(parsed['db'].keys()), parsed, args,genome)
+		run_genome(sorted(parsed['db'].keys()), genome)
 
 	print("\n\n--- %s seconds ---" % (time.time() - start_time))
