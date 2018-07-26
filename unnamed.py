@@ -97,6 +97,22 @@ def digest(genome, p5, p3):
 	new_fragments.append(temp_frag)
 	return new_fragments
 
+def hist_cut_site(fragments, len_genome, enzyme):
+	"""
+		function that returns the location of the cutsites in a .csv file which will be used to plot a frequency distribution along the length of the genome
+	"""
+	
+	sites_len = []
+	sites  = open("output/cut_site.csv", "a")
+	sites.write(str(enzyme)+"\t"+str(len_genome)+"\t")
+	for frag in fragments:
+		if (frag[1] == 0):
+			continue
+		sites_len.append(frag[1])
+		sites.write(str(frag[1])+"\t")
+	sites.write("\n")
+
+	return
 
 def shear_frag(fragments, shear_len):
 	"""
@@ -401,6 +417,37 @@ def run_RE(enzyme):
 		unique_repeats = 0
 		uniq_count = 0
 		rept_count = 0
+		
+		results = open("output/"+enzyme+".out", "w+")
+		results.write(enzyme+"\t")
+		## if double digest
+		if args.p == 'ddrad':
+			enzyme1, enzyme2 = enzyme.split()
+			p5,p3 = restriction_sites(enzyme1,parsed['db'])
+		else:
+			p5,p3 = restriction_sites(enzyme,parsed['db'])
+
+		fragments = digest(genome, p5, p3)
+		results.write(str(len(fragments))+"\t")
+		## if double digest
+		frag_select = []
+		if args.p == 'ddrad':
+			p5_2, p3_2 = restriction_sites(enzyme2,parsed['db'])
+			dig_frag = [item[0] for item in fragments]
+			fragments = dd_digest(dig_frag,p5_2,p3_2,p5,p3)
+			frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
+
+		## if single digest, shear fragments
+		else:
+			frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
+			frag_select = shear_frag(frag_select,int(args.max))
+
+		results.write(str(len(frag_select))+"\t")
+		# ## select the fragments based on size
+		# frag_select = list(filter(lambda frag: (frag[2]-frag[1]) < maxsize and (frag[2]-frag[1]) > minsize, shear_frag))
+		#frag_select = select_size(shear_frag, args.min, args.max)
+
+		hist_cut_site(fragments,len(genome),enzyme)
 
 		try:
 			unique_repeats,uniq_count,rept_count = remove_repeat2.remove_XAs(enzyme)
