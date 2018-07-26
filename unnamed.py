@@ -11,9 +11,10 @@ import argparse, re, copy, operator, importlib
 import sys, time, os, shutil, subprocess
 import numpy as np
 import remove_repeat2, tojson
-from multiprocessing import Pool, Process, Queue
+from multiprocessing import Pool, Process, Queue, Lock
 from multiprocessing.pool import ThreadPool
 pool = Pool(32)
+lock = Lock()
 
 def gen(x,p):
 	"""
@@ -124,15 +125,29 @@ def shear_frag(fragments, shear_len):
 	for frag in fragments:
 		temp_shear = []
 		temp_frag = frag[0]
+		temp_frag_start = []
+		temp_frag_end = []
+		temp_start = frag[1]
 		temp_end = frag[2]
 		frag_size = frag[2] - frag[1] + 1
-		if (frag_size > shear_len):
-			temp_frag = frag[0][:shear_len]
-			temp_end = frag[2] - (frag_size - shear_len)
-		temp_shear.append(temp_frag)	## fragment sequence
+		#if (frag_size > shear_len*2):
+		
+		temp_frag_start = frag[0][:shear_len]
+		temp_end = frag[2] - (frag_size - shear_len)
+
+		temp_shear.append(temp_frag_start)	## fragment sequence
 		temp_shear.append(frag[1])		## fragment start
 		temp_shear.append(temp_end)		## fragment end
 		sheared_fragments.append(temp_shear)	## append sheared fragment
+
+		temp_frag_end = frag[0][-shear_len:]
+		temp_start = frag[1]+(frag_size-shear_len)
+
+		temp_shear.append(temp_frag_end)	## fragment sequence
+		temp_shear.append(temp_start)		## fragment start
+		temp_shear.append(frag[2])		## fragment end
+		sheared_fragments.append(temp_shear)
+
 	#shear_frag =[frag[:500] for frag in fragments]
 	#print(sheared_fragments)
 	return sheared_fragments
@@ -171,7 +186,7 @@ def select_size(fragments, minsize, maxsize, protocol):
 			if(len(frag[0]) < maxsize and len(frag[0]) > minsize):
 				selected_fragments.append(frag)
 		else:
-			if(len(frag[0]) > minsize):
+			if(len(frag[0]) > maxsize*2):
 				selected_fragments.append(frag)
 
 	return selected_fragments
@@ -337,13 +352,18 @@ def parse_input(input_name):
 	list_genome.append([new_genome_name,new_genome_seq])
 	return list_genome[1:]
 
-def write_csv(genome_name, fragments, enzyme):
+def write_csv(genome_name, fragments, enzyme, len_genome):
 	csv_file = open("output/csv_"+genome_name+".csv", "a+")
 	csv_file.write(enzyme)
 	csv_file.write("\t")
 	length = [str(len(row[0])) for row in fragments]
 	joined = ','.join(length)
 	csv_file.write(joined)
+	csv_file.write("\t")
+	cut_site = [str(row[1]) for row in fragments]
+	cut_site[0] = str(len_genome)
+	join_cut = ','.join(cut_site)
+	csv_file.write(join_cut)
 	csv_file.write("\n")
 	csv_file.close()
 
@@ -391,8 +411,10 @@ def run_RE(enzyme):
 		# ## select the fragments based on size
 		# frag_select = list(filter(lambda frag: (frag[2]-frag[1]) < maxsize and (frag[2]-frag[1]) > minsize, shear_frag))
 		#frag_select = select_size(shear_frag, args.min, args.max)
-
-		write_csv(genome_name, fragments, enzyme)
+		global lock
+		lock.acquire()
+		write_csv(genome_name, fragments, enzyme, len(genome))
+		lock.release()
 
 		output = open("reads/"+enzyme+"_read1.fastq", "w+")
 		output2 = open("reads/"+enzyme+"_read2.fastq", "w+")
@@ -416,7 +438,7 @@ def run_RE(enzyme):
 		shellscript = subprocess.Popen(["./bwa_aln.sh %s %s" % (args.i,enzyme)], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
 		shellscript.wait()
 
-		hist_cut_site(fragments,len(genome),enzyme)
+		#hist_cut_site(fragments,len(genome),enzyme)
 		
 		unique_repeats = 0
 		uniq_count = 0
@@ -475,6 +497,11 @@ def run_genome(REs,list_genomes):
 		csv_file.close()
 		global pool
 		pool = Pool(32)
+
+
+		global lock 
+		lock = Lock()
+
 		try:
 			pool.map(run_RE,[enz for enz in REs])
 		except:
