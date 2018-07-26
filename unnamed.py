@@ -13,6 +13,8 @@ import numpy as np
 import remove_repeat2, tojson
 from multiprocessing import Pool, Process, Queue
 from multiprocessing.pool import ThreadPool
+pool = Pool(32)
+
 def gen(x,p):
 	"""
 		function that simply uses the join function on x and p (x.join(p))
@@ -414,44 +416,17 @@ def run_RE(enzyme):
 		shellscript = subprocess.Popen(["./bwa_aln.sh %s %s" % (args.i,enzyme)], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
 		shellscript.wait()
 
+		hist_cut_site(fragments,len(genome),enzyme)
+		
 		unique_repeats = 0
 		uniq_count = 0
-		rept_count = 0
-		
-		results = open("output/"+enzyme+".out", "w+")
-		results.write(enzyme+"\t")
-		## if double digest
-		if args.p == 'ddrad':
-			enzyme1, enzyme2 = enzyme.split()
-			p5,p3 = restriction_sites(enzyme1,parsed['db'])
-		else:
-			p5,p3 = restriction_sites(enzyme,parsed['db'])
-
-		fragments = digest(genome, p5, p3)
-		results.write(str(len(fragments))+"\t")
-		## if double digest
-		frag_select = []
-		if args.p == 'ddrad':
-			p5_2, p3_2 = restriction_sites(enzyme2,parsed['db'])
-			dig_frag = [item[0] for item in fragments]
-			fragments = dd_digest(dig_frag,p5_2,p3_2,p5,p3)
-			frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
-
-		## if single digest, shear fragments
-		else:
-			frag_select = select_size(fragments,int(args.min), int(args.max),args.p)
-			frag_select = shear_frag(frag_select,int(args.max))
-
-		results.write(str(len(frag_select))+"\t")
-		# ## select the fragments based on size
-		# frag_select = list(filter(lambda frag: (frag[2]-frag[1]) < maxsize and (frag[2]-frag[1]) > minsize, shear_frag))
-		#frag_select = select_size(shear_frag, args.min, args.max)
-
-		hist_cut_site(fragments,len(genome),enzyme)
+		rept_count = 0		
 
 		try:
 			unique_repeats,uniq_count,rept_count = remove_repeat2.remove_XAs(enzyme)
 		except:
+			global pool
+			pool.close()
 			pool.terminate()
 			raise Exception("Close")
 			raise SystemExit
@@ -471,7 +446,6 @@ def run_RE(enzyme):
 		results.close()
 
 	except:
-		pool.terminate()
 		raise Exception("Close pool")
 	return
 
@@ -501,7 +475,11 @@ def run_genome(REs,list_genomes):
 		csv_file.close()
 		global pool
 		pool = Pool(32)
-		pool.map(run_RE,[enz for enz in REs])
+		try:
+			pool.map(run_RE,[enz for enz in REs])
+		except:
+			pool.close()
+			pool.terminate()
 		# global json
 		# json = 
 		# for enz in REs:
@@ -521,7 +499,7 @@ def run_genome(REs,list_genomes):
 		# 		break
 
 		pool.close()
-		pool.terminate()
+		pool.join()
 
 		with open("output/"+genome_name+".txt",'wb') as wfd:
 		    for f in ["output/"+keys+".out" for keys in sorted(parsed['db'].keys())]:
@@ -643,7 +621,6 @@ if __name__ == '__main__':
 			run_genome(REs, genome)
 		except (OSError, IOError) as e:
 			print("Restriction enzyme list file is invalid or not found")
-			pool.terminate()
 			raise SystemExit
 
 	## if protocol is ddrad and RE file is given
@@ -654,7 +631,6 @@ if __name__ == '__main__':
 			run_genome(REs, genome)
 		except (OSError, IOError) as e:
 			print("Restriction enzyme list file is invalid or not found")
-			pool.terminate()
 			raise SystemExit
 
 	## if no RE file given, use everything in the database and protocol is original by default
