@@ -1,5 +1,5 @@
 <html>
-
+<meta charset="utf-8">
 <head>
   <script src="src/jquery.min.js"></script>
   <script src="src/jquery.dataTables.min.js"></script>
@@ -119,16 +119,21 @@ d3.text("output/genome_names.txt", function(text) {
       selectList.appendChild(option);
   }
 
-  var selected_genome = $('#mySelect2').find(":selected").text();
-  $('#mySelect2').val(selected_genome);
+  //var selected_genome = $('#mySelect2').find(":selected").text();
+  //$('#mySelect2').val(selected_genome);
 
-  var name = selected_genome.split(' ')
+
+  var selectedItem2 = sessionStorage.getItem("SelectedItem");  
+  $('#mySelect2').val(selectedItem2);
+  
+  var name = selectedItem2.split(' ')
   gen_name = name[0]
+  //console.log(gen_name)
 
 
   $('#mySelect2').change(function() { 
-      var dropVal = $(this).val();
-      sessionStorage.setItem("SelectedItem", dropVal);
+      var dropVal2 = $(this).val();
+      sessionStorage.setItem("SelectedItem", dropVal2);
       location.reload();
   });
 
@@ -188,10 +193,11 @@ d3.json("output/cut"+name+".json", function(data) {
 
   var index = data[enzyme]
   //var obj = JSON.parse(data)
+  var cut_sites = index.length - 1
 
   var formatCount = d3.format(",.0f");
-  var barWidth = 1;
-  var margin = {top: 10, right: 30, bottom: 30, left: 30},
+  var barWidth = 0.5;
+  var margin = {top: 25, right: 30, bottom: 30, left: 30},
     width = 960 - margin.left - margin.right,
     height = 150 - margin.top - margin.bottom;
 
@@ -231,8 +237,8 @@ d3.json("output/cut"+name+".json", function(data) {
   bar.append("rect")
       .attr("x", -barWidth/2)
       .attr("width", barWidth )
-      .attr("height", 105)
-      .style("opacity", 0.1);
+      .attr("height", 90)
+      .style("opacity", 0.2);
       
 
   svg.append("g")
@@ -249,16 +255,25 @@ d3.json("output/cut"+name+".json", function(data) {
   svg.append("text")             
       .attr("transform",
             "translate(" + (width/2) + " ," + 
-                           (height + margin.top + 20) + ")")
+                           (height + margin.top + 0) + ")")
       .style("text-anchor", "middle")
       .text("Length of Genome");
+
+   svg.append("text")             
+      .attr("transform",
+            "translate(" + (width/2) + " ," + 
+                           (height + margin.top + -130) + ")")
+      .style("text-anchor", "middle")
+      .style("font-size", "20px")
+      .text(enzyme+"    ("+cut_sites+" cut sites)");
 
   svg.append("text")             
       .attr("transform",
             "translate(" + (width/2) + " ," + 
-                           0 + ")")
+                           -10 + ")")
       .style("text-anchor", "middle")
-      .text(enzyme);
+      .style("font-size", "20px")
+      .text(enzyme+"    ("+cut_sites+" cut sites)");
 
 
   function zoomed() {
