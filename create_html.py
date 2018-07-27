@@ -31,8 +31,8 @@ def create_overview():
 	file_html.write('\n\t\t\t<div class="twelve wide stretched column">\n\t\t\t\t<div class="ui segment">\n')
 
 	header_name = '\t\t\t\t\t<div class="ui tab%s" data-tab="%s"><h2>%s</h2>\n'
-	table_header = '<table id="" class="ui celled table enzymes_table" style="width:100%">\n\t<thead>\n<tr>\n\t\t<th>Enzyme</th>\n\t\t<th>Fragments after Digestion</th>\n\t\t<th>Fragments after Shearing and Size Select</th>\n\t\t<th>\n<div data-tooltip="Reads that no repeats are found after running BWA">Unique Reads <i class="icon small question circle"></i></div></th>\n\t\t<th><div data-tooltip="Reads with repeats that are found after running BWA">Repeat Reads <i class="icon small question circle"></i></div></th>\n\t\t<th><div data-tooltip="Regions found by BWA that are repeats of reads">Repeat regions hit by Reads <i class="icon small question circle"></i></div></th>\n\t\t<th>Fragments within gene region</th></tr>\n\t</thead>\n\t<tbody>\n'
-	table_def = '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n'
+	table_header = '<table id="" class="ui celled table enzymes_table" style="width:100%">\n\t<thead>\n<tr>\n\t\t<th>Enzyme</th>\n\t\t<th>Fragments after Digestion</th>\n\t\t<th>Fragments after Shearing and Size Select</th>\n\t\t<th>Percent Coverage</th>\n\t\t<th>\n<div data-tooltip="Reads that no repeats are found after running BWA">Unique Reads <i class="icon small question circle"></i></div></th>\n\t\t<th><div data-tooltip="Reads with repeats that are found after running BWA">Repeat Reads <i class="icon small question circle"></i></div></th>\n\t\t<th><div data-tooltip="Regions found by BWA that are repeats of reads">Repeat regions hit by Reads <i class="icon small question circle"></i></div></th>\n\t\t<th>Fragments within annotation region</th>\n\t\t<th>Percent of Annotation Covered</th></tr>\n\t</thead>\n\t<tbody>\n'
+	table_def = '<td>%s</td>'
 
 	for name in genome_names:
 		file_name = name.split(" ")[0]
@@ -48,7 +48,11 @@ def create_overview():
 		with open("output/"+file_name+".txt", "r") as results_file:
 			for result_line in results_file:
 				results = result_line.strip().split("\t")
-				file_html.write(table_def % (results[0],results[1],results[2],results[3], results[4], results[5], results[6]))
+				file_html.write("<tr>")
+				for i in range(len(results)):
+					file_html.write(table_def % results[i])
+				file_html.write("</tr>\n")
+				# file_html.write(table_def % (results[0],results[1],results[2],results[3], results[4], results[5], results[6], results?))
 
 		file_html.write("</tbody></table>")
 		file_html.write("\n\t\t\t\t\t</div>\n")
