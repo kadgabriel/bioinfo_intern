@@ -1,0 +1,19 @@
+    
+    <script type="text/javascript">
+        $(document).ready(function(){
+          $('.tabular.menu .item').tab();
+          $('.icon.question')
+          .popup({
+            on: 'click'
+          });
+          $('table.enzymes_table').DataTable();
+        });
+
+        $.extend( true, $.fn.dataTable.defaults, {
+          "searching": false,
+          "paging":   false,
+          "info":     false,
+        });
+        
+
+      </script>

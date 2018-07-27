@@ -1,0 +1,95 @@
+
+<script type="text/javascript">
+
+    var width = 600;
+    var height=650;
+    var num_choice = 5;
+
+    var gel = electrophoresis();
+
+    var svg = d3.select(".gel_body").append("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .call(gel.makeGel); // Make black background first.
+
+
+    function read_data(){
+      file = document.getElementById("genome").value
+      url = 'output/'+file+'.json'
+      return $.ajax({
+        url: url,
+        beforeSend: function(xhr){
+          if (xhr.overrideMimeType)
+          {
+            xhr.overrideMimeType("application/json");
+          }
+        },
+        type: "GET",
+        dataType: 'json',
+        data: { get_param: 'value' },
+        success: function(data){
+          render(data);
+        }
+      });
+    }
+
+    // Delete previous bands and render new bands.
+    function render(list){
+      // Make maker list.
+      var marker_text = document.getElementById("gel_step").value.split(",");
+      var marker_list = [];
+      for(var i = 0; i<marker_text.length; i++){
+        marker_list.push(parseInt(marker_text[i]));
+      }
+
+      var wells = [marker_list];
+
+      var choice = []
+      for(var i=0; i<num_choice; i++){
+        choice[i] = document.getElementById("enzyme_"+String(i+1)).value;
+      }
+      
+      // You can delete band elements by referencing ".gel".
+      d3.selectAll(".gel").remove();
+      // Set parameters by {} or method-chain.
+      var names = ["marker"];
+
+      var raw_start = document.getElementById("gel_start").value;
+      var raw_end = document.getElementById("gel_end").value;
+
+
+      var len_list = []
+      for (var i=0; i<choice.length; i++){
+        if(choice[i] != ""){
+          // console.log(list[choice[i]]);
+          var new_list = []
+          if(parseInt(raw_start) >= 0 && parseInt(raw_end) > 0){
+            new_list = filter(list[choice[i]],parseInt(raw_start), parseInt(raw_end))
+          }
+          else{
+            new_list = list[choice[i]];
+          }
+          len_list.push(new_list);
+          names.push(choice[i]);
+        }
+      }
+
+
+
+      gel = electrophoresis({duration:1000, len_list:len_list, names:names,band_blur: 1, band_thick_min: 2, band_thick_rate:0, tooltip_band_on: "off", lane_number: 6, band_width:45}).enzymes(wells);
+
+      // Make band elements in svg.
+      svg.call(gel);
+    }
+
+    function filter(list, start, end){
+      var new_list = []
+      for(var elem in list){
+        if(list[elem] >= start && list[elem] <= end){
+          new_list.push(list[elem]);
+        }
+      }
+      return new_list
+    }
+
+  </script>

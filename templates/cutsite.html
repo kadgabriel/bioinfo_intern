@@ -1,0 +1,296 @@
+<html>
+
+<head>
+  <script src="src/jquery.min.js"></script>
+  <script src="src/jquery.dataTables.min.js"></script>
+  <script src="src/semantic.min.js"></script>
+  <script src="src/d3.v3.min.js"></script>
+  <script src="src/d3-electrophoresis.js"></script>
+  <link rel="stylesheet" type="text/css" href="src/semantic.min.css">
+  <link rel="stylesheet" type="text/css" href="src/dataTables.semanticui.min.css">
+
+  <style type="text/css">
+  body {
+    background-color: #FFFFFF;
+  }
+  .ui.menu .item {
+    margin-right: 1.5em;
+  }
+  .main.container {
+    margin-top: 7em;
+  }
+  input .three_fields{
+    margin: 0 10px;
+  }
+  bar rect {
+  fill: black;
+  shape-rendering: crispEdges;
+	}
+
+	.axis path, .axis line {
+	  fill: none;
+	  stroke: #000;
+	  shape-rendering: crispEdges;
+	}
+
+	svg {
+    font-size: 12px;
+    position: relative;
+    margin-top: 50px;
+    margin-bottom: 50px;
+    
+  	}
+
+  	g {
+    overflow: visible;
+  	}
+
+ 	 text {
+    z-index: 20;
+  }
+
+  rect.pane {
+    cursor: move;
+    fill: none;
+    pointer-events: all;
+  }
+  </style>
+
+</head>
+<body>
+
+  <div class="ui fixed inverted menu">
+    <div class="ui container">
+      <div class="header item">
+        RApyD Report
+      </div>
+      <a href="index.html" class="item">Overview</a>
+      <a href="gel.html" class="item">Electrophoresis</a>
+      <a href="cutsite.html" class="item">Cut Site Distribution</a>
+    </div>
+  </div>
+  <div class="ui main container">
+    <div class="ui grid">
+    
+    	<div id="myDiv2" class="center">Genome / Chromosome: </div>
+		<div id="myDiv" class ="center2">Enzyme: </div>
+    <div> <button onclick="myFunction()">Reload Page</button> </div>
+
+        <div class="sixteen wide column" id="try">
+        </div>
+				
+      </div>
+    </div>
+    </div>
+  </div>
+
+
+<script type="text/javascript">
+
+   
+function myFunction() {
+    location.reload();
+}
+
+var gen_name;
+var enzyme;
+
+d3.text("output/genome_names.txt", function(text) {
+
+
+  var myDiv = document.getElementById("myDiv2");
+
+  // array to be added
+  var data = text.split('\n')
+  var data_len = data.length - 1
+  //console.log(data_len)
+  
+  //Create and append select list
+  var selectList = document.createElement("select");
+  selectList.setAttribute("id", "mySelect2");
+  myDiv.appendChild(selectList);
+
+ //Create and append the options
+  for (var i = 0; i < data.length; i++) {
+      var option = document.createElement("option");
+      option.setAttribute("value", data[i]);
+      option.text = data[i];
+      //option.onchage = self.location.reload(true)
+      selectList.appendChild(option);
+  }
+
+  var selected_genome = $('#mySelect2').find(":selected").text();
+  $('#mySelect2').val(selected_genome);
+
+  var name = selected_genome.split(' ')
+  gen_name = name[0]
+
+
+  $('#mySelect2').change(function() { 
+      var dropVal = $(this).val();
+      sessionStorage.setItem("SelectedItem", dropVal);
+      location.reload();
+  });
+
+});
+
+d3.text("output/RE.txt", function(text) {
+
+
+  var myDiv = document.getElementById("myDiv");
+
+  // array to be added
+  var data = text.split('\n')
+  var data_len = data.length - 1
+  //console.log(data_len)
+  
+  //Create and append select list
+  var selectList = document.createElement("select");
+  selectList.setAttribute("id", "mySelect");
+  myDiv.appendChild(selectList);
+
+ //Create and append the options
+  for (var i = 0; i < data.length; i++) {
+    var option = document.createElement("option");
+    option.setAttribute("value", data[i]);
+    option.text = data[i];
+    //option.onchage = self.location.reload(true)
+    selectList.appendChild(option);
+  }
+
+
+  var selectedItem = sessionStorage.getItem("SelectedItem");  
+  $('#mySelect').val(selectedItem);
+
+  enzyme = selectedItem
+  hist_plot(gen_name, enzyme)
+
+  
+  $('#mySelect').change(function() { 
+      var dropVal = $(this).val();
+      sessionStorage.setItem("SelectedItem", dropVal);
+      hist_plot(gen_name, dropVal)
+      //location.reload();
+
+     
+  });
+
+})
+
+
+
+
+
+let hist_plot = function(name, enzyme){
+
+d3.json("output/cut"+name+".json", function(data) {
+  //console.log(data[enzyme]);
+
+  var index = data[enzyme]
+  //var obj = JSON.parse(data)
+
+  var formatCount = d3.format(",.0f");
+  var barWidth = 1;
+  var margin = {top: 10, right: 30, bottom: 30, left: 30},
+    width = 960 - margin.left - margin.right,
+    height = 150 - margin.top - margin.bottom;
+
+  var x = d3.scale.linear()
+    .domain([0, index[0]])
+    .range([0, width]);
+
+  var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom")
+    .tickSize(-1, 0)
+    .tickPadding(6); 
+
+  var zoom = d3.behavior.zoom()
+    .x(x)
+    .scaleExtent([1, 50])
+    .on("zoom", zoomed);
+
+
+
+  var svg = d3.select("#try").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+    .append("svg:g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+    .call(zoom)
+    
+
+
+  var bar = svg.selectAll(".bar")
+      .data(index)
+      .enter().append("g")
+      .attr("class", "bar")
+      .attr("transform", function(d) { return "translate(" + x(d) + ",0)"; })
+    
+    
+  bar.append("rect")
+      .attr("x", -barWidth/2)
+      .attr("width", barWidth )
+      .attr("height", 105)
+      .style("opacity", 0.1);
+      
+
+  svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(0," + height + ")")
+      .call(xAxis);
+
+  svg.append("svg:rect")
+    .attr("class", "pane")
+    .attr("width", width)
+    .attr("height", height)
+   
+
+  svg.append("text")             
+      .attr("transform",
+            "translate(" + (width/2) + " ," + 
+                           (height + margin.top + 20) + ")")
+      .style("text-anchor", "middle")
+      .text("Length of Genome");
+
+  svg.append("text")             
+      .attr("transform",
+            "translate(" + (width/2) + " ," + 
+                           0 + ")")
+      .style("text-anchor", "middle")
+      .text(enzyme);
+
+
+  function zoomed() {
+
+  //var t = zoom.translate(),
+      //tx = t[0],
+      //ty = t[1];
+
+  //tx = Math.min(tx, 0);
+  //tx = Math.max(tx, -10000);
+ // console.log(tx)
+
+  let e = d3.event;
+  let tx = Math.min(0, Math.max(e.translate[0], width - width*e.scale));
+  let ty = Math.min(0, Math.max(e.translate[1], height - height*e.scale));
+  zoom.translate([tx,ty]);
+
+  //zoom.translate([tx, ty]);
+
+  svg.select(".x.axis").call(xAxis);
+  bar.attr("transform", function(d) { return "translate(" + x(d) + ",0)"; })
+  //svg.select(".bar").call(bar)
+  //svg.select("rect")
+  //svg.select(".y.axis").call(yAxis);
+  }
+
+});
+
+}
+//console.log(x)
+
+
+  </script>
+	</body>
+</html>

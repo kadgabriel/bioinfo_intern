@@ -1,0 +1,42 @@
+<html>
+
+<head>
+  <script src="src/jquery.min.js"></script>
+  <script src="src/jquery.dataTables.min.js"></script>
+  <script src="src/semantic.min.js"></script>
+  <script src="src/d3.min.js" charset="utf-8"></script>
+  <script src="src/d3-electrophoresis.js"></script>
+  <link rel="stylesheet" type="text/css" href="src/semantic.min.css">
+  <link rel="stylesheet" type="text/css" href="src/dataTables.semanticui.min.css">
+
+  <style type="text/css">
+  body {
+    background-color: #FFFFFF;
+  }
+  .ui.menu .item {
+    margin-right: 1.5em;
+  }
+  .main.container {
+    margin-top: 7em;
+  }
+  input .three_fields{
+    margin: 0 10px;
+  }
+  </style>
+
+</head>
+<body>
+
+  <div class="ui fixed inverted menu">
+    <div class="ui container">
+      <div class="header item">
+        RApyD Report
+      </div>
+      <a href="index.html" class="item">Overview</a>
+      <a href="gel.html" class="item">Electrophoresis</a>
+      <a href="cutsite.html" class="item">Cut Site Distribution</a>
+    </div>
+  </div>
+  <div class="ui main container">
+    <div class="ui grid">
+    

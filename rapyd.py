@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 """
-RADSeq python script
+RApyD
 A python script that simulates restriction enzyme digestion (single and double), size selection annd evaluates the number of fragments inside a target annotated region for given genomes in a single fasta file or generated DNA sequence with GC Frequency.
 """
 
@@ -10,7 +10,7 @@ from __future__ import print_function
 import argparse, re, copy, operator, importlib
 import sys, time, os, shutil, subprocess
 import numpy as np
-import remove_repeat2, tojson
+import remove_repeat2, tojson, create_html
 from multiprocessing import Pool, Process, Queue, Lock
 from multiprocessing.pool import ThreadPool
 pool = Pool(32)
@@ -53,6 +53,7 @@ def generate_gc(gc_freq, genome_size):
 	p_1234 = ''.join([p_12.get(),p_34.get()])
 
 	output = open("genome.txt", "w+")
+	output.write(">Generated genome of length %d with GC frequency %f\n" % (genome_size,gc_freq))
 	output.write(p_1234)	## write the strings into a file
 	output.close()
 
@@ -416,54 +417,52 @@ def run_RE(enzyme):
 		write_csv(genome_name, fragments, enzyme, len(genome))
 		lock.release()
 
-		output = open("reads/"+enzyme+"_read1.fastq", "w+")
-		output2 = open("reads/"+enzyme+"_read2.fastq", "w+")
-		for i in range(0,len(frag_select)):
-			output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
-			output.write(frag_select[i][0][:100])
-			output.write("\n+\n")
-			for j in range(0,100):
-				output.write("A")
-			output.write("\n")
+		hist_cut_site(fragments,len(genome),enzyme)
+		hit_genes = 0
+		if(args.gc == None):
+			output = open("reads/"+enzyme+"_read1.fastq", "w+")
+			output2 = open("reads/"+enzyme+"_read2.fastq", "w+")
+			for i in range(0,len(frag_select)):
+				output.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
+				output.write(frag_select[i][0][:100])
+				output.write("\n+\n")
+				for j in range(0,100):
+					output.write("A")
+				output.write("\n")
 
-			output2.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
-			output2.write(frag_select[i][0][-100:])
-			output2.write("\n+\n")
-			for j in range(0,100):
-				output2.write("A")
-			output2.write("\n")
-		output.close()
-		output2.close()
+				output2.write("@Frag_"+str(i+1)+"_"+str(frag_select[i][1]+1)+"_"+str(frag_select[i][2]+1)+"\n")
+				output2.write(frag_select[i][0][-100:])
+				output2.write("\n+\n")
+				for j in range(0,100):
+					output2.write("A")
+				output2.write("\n")
+			output.close()
+			output2.close()
 
-		shellscript = subprocess.Popen(["./bwa_aln.sh %s %s" % (args.i,enzyme)], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
-		shellscript.wait()
+			shellscript = subprocess.Popen(["./bwa_aln.sh %s %s" % (args.i,enzyme)], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
+			shellscript.wait()
+			
+			unique_repeats = 0
+			uniq_count = 0
+			rept_count = 0		
 
-		#hist_cut_site(fragments,len(genome),enzyme)
-		
-		unique_repeats = 0
-		uniq_count = 0
-		rept_count = 0		
+			try:
+				unique_repeats,uniq_count,rept_count = remove_repeat2.remove_XAs(enzyme)
+			except:
+				global pool
+				pool.close()
+				pool.terminate()
+				raise Exception("Close")
+				raise SystemExit
 
-		try:
-			unique_repeats,uniq_count,rept_count = remove_repeat2.remove_XAs(enzyme)
-		except:
-			global pool
-			pool.close()
-			pool.terminate()
-			raise Exception("Close")
-			raise SystemExit
-
-		results.write(str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats)+"\t")
-		if('annotation' in parsed):
-			genes = parsed['annotation'][genome_name]
-			# print("Number of matches in genes: "+str(compare_gene(genes,frag_select)))
-			hit_genes = compare_gene(genes,frag_select)
-			print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select))+"\t"+str(hit_genes))
-			results.write(str(hit_genes)+"\t")
-			results.write(str())
-		else:
-			print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select))+"\t"+str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats))
-
+			results.write(str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats)+"\t")
+			if('annotation' in parsed):
+				genes = parsed['annotation'][genome_name]
+				hit_genes = compare_gene(genes,frag_select)
+				
+		print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select))+"\t"+str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats)+"\t"+str(hit_genes))
+		results.write(str(hit_genes)+"\t")
+		results.write(str())
 		results.write("\n")
 		results.close()
 
@@ -498,38 +497,19 @@ def run_genome(REs,list_genomes):
 		global pool
 		pool = Pool(32)
 
-
 		global lock 
 		lock = Lock()
-
 		try:
 			pool.map(run_RE,[enz for enz in REs])
 		except:
 			pool.close()
 			pool.terminate()
-		# global json
-		# json = 
-		# for enz in REs:
-		# 	run_RE(enz,parsed,args,genome, genome_name)
-		# 	try:
-		# 		pool.apply(run_RE, (enz,parsed,args,genome, genome_name))
-		# 		# p = Process(target=run_RE,args=(enz,parsed,args,genome, genome_name))
-		# 		# p.start()
-		# 		# p.join()
-		# 	except TypeError:
-		# 		break
-		# 	except KeyboardInterrupt:
-		# 		break
-		# 	except Exception:
-		# 		break
-		# 	except:
-		# 		break
-
 		pool.close()
 		pool.join()
-
+		
+		REs.sort()
 		with open("output/"+genome_name+".txt",'wb') as wfd:
-		    for f in ["output/"+keys+".out" for keys in sorted(parsed['db'].keys())]:
+		    for f in ["output/"+enz+".out" for enz in REs]:
 				with open(f,'rb') as fd:
 					shutil.copyfileobj(fd, wfd, 1024*1024*10)
 				os.remove(f)
@@ -555,6 +535,7 @@ if __name__ == '__main__':
 	parser.add_argument('-p', nargs='?', default='orig', help='radseq protocol: use ddrad for double digestion')
 	parser.add_argument('-gc', nargs='?', help='input gc frequency. Value must be between 0 and 1')
 	parser.add_argument('-dna', nargs='?', help='input dna estimated length')
+	parser.add_argument('-o', nargs='?', default='report', help='name of output file')
 
 	args = parser.parse_args()
 
@@ -579,7 +560,7 @@ if __name__ == '__main__':
 
 
 	## catch errors for invalid input file argument
-	if (args.i == None and args.gc != None and args.dna != None):
+	if (args.i != None and args.gc != None and args.dna != None):
 		print("Choose only one input source")
 		raise SystemExit
 	if (args.i == None or len(args.i)==0) and (args.gc == None and args.dna == None):
@@ -639,7 +620,8 @@ if __name__ == '__main__':
 
 
 	##### running the core of the script happens here #####
-	shellscript.wait()
+	if args.i != None:
+		shellscript.wait()
 	# if protocol is original and RE file is given
 	# parse the RE file then call run_genome
 	if (args.re != None and len(args.re) > 0 and args.p == 'orig'):
@@ -663,5 +645,9 @@ if __name__ == '__main__':
 	## if no RE file given, use everything in the database and protocol is original by default
 	else:
 		run_genome(sorted(parsed['db'].keys()), genome)
+
+	importlib.import_module("create_html")
+	if(len(os.listdir("output")) > 0):
+		create_html.create_report(args.o)
 
 	print("\n\n--- %s seconds ---" % (time.time() - start_time))
