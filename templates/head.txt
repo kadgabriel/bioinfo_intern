@@ -30,7 +30,7 @@
   <div class="ui fixed inverted menu">
     <div class="ui container">
       <div class="header item">
-        RApyD Report
+        RApyDS Report
       </div>
       <a href="index.html" class="item">Overview</a>
       <a href="gel.html" class="item">Electrophoresis</a>

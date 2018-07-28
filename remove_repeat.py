@@ -1,3 +1,9 @@
+"""
+RApyDS
+Restriction Site Associated DNA Python-Digested Simulation
+
+remove_repeat.py
+"""
 
 from __future__ import print_function
 import sys, os
@@ -57,5 +63,4 @@ def remove_XAs(enzyme):
 	return ctr,unique,repeat
 
 if __name__ == '__main__':
-	remove_XAs("MspI")
 	pass
