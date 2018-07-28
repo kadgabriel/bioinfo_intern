@@ -65,9 +65,7 @@ Inside the archive are 3 html files containing:
 
 > Slowdown may be experienced when loading visualisations for enzymes with large number of cut sites.
 
-![Overview](/docs/img/ecoli_overview.png "Overview")
-![Electrophoresis](/docs/img/ecoli_gel.png "Electrophoresis")
-![Cut Site Distribution](/docs/img/ecoli_cutsite.png "Cut Site Distribution")
+See sample output [here](docs/img)
 
 ### Authors
 
