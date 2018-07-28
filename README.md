@@ -16,6 +16,7 @@
 - numpy ( `pip install numpy` )
 - BWA 0.7.12 (http://bio-bwa.sourceforge.net/)
 - Firefox (for viewing the html files)
+- Linux OS
 
 ### Usage
 
@@ -28,12 +29,12 @@
 -  **-at [AT]**    what to look for in gene annotation file (ex. gene region, exon, intron, etc) (default: gene)
 -  **-min [MIN]**  minimum fragment size (default: 200)
 -  **-max [MAX]**  maximum fragment size (default: 300)
--  **-bp [BP]**    base pair read lenght for FASTQ generation (default: 100)
+-  **-bp [BP]**    base pair read length for FASTQ generation (default: 100)
 -  **-p [P]**      radseq protocol: use ddrad for double digestion (default: orig)
 -  **-gc [GC]**    input gc frequency. Value must be between 0 and 1
 -  **-dna [DNA]**  input dna estimated length
 -  **-o [O]**      output file name (default: report)
--  **-t [T]**      number of processes (default 16)
+-  **-t [T]**      number of processes (default 4)
 
 
 
@@ -44,7 +45,7 @@
 
 - To use RApyDS by generating a genome file given GC content/frequency
 
-``python rapyds.py -gc <gc frequency from 0 to 1> -dna <lenght> [other args]``
+``python rapyds.py -gc <gc frequency from 0 to 1> -dna <length> [other args]``
 
 
 #### Sample Run
@@ -61,11 +62,11 @@ Inside the archive are 3 html files containing:
 - Electrophoresis (``gel.html``) - electrophoresis simulation comparing a genome and choice of up to 5 restriction enzyme
 - Cut Site Distribution (``cutsite.html``) - zoomable images of the genome marked with cut sites by choice of enzymes
 
-> It is advisable open the html files using Firefox. There is an issue with Google Chrome regarding local file access. Only the overview file will work fine for any browser.
+> It is advisable open the html files using Firefox. There is an issue with Google Chrome when opening local files. Only the overview file will work fine for any browser.
 
 > Slowdown may be experienced when loading visualisations for enzymes with large number of cut sites.
 
-See sample output [here](docs/img)
+See sample output [here](docs/examples/)
 
 ### Authors
 

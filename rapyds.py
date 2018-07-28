@@ -320,19 +320,22 @@ def compare_gene(gene_location, fragments):
 	for i in range(0,len(fragments)):
 		## loop in the gene_location, fragment's location must be 
 		## on the right of gene's start
-		while(gene_location[gene_ctr][0] <= fragments[i][1]):
-			## return if gene_ctr exceeds
-			if(gene_ctr == len(gene_location)-1):
-				return match_ctr, len(set(genes_match))	
+		if(len(gene_location) > 0):
+			while(gene_location[gene_ctr][0] <= fragments[i][1]):
+				## return if gene_ctr exceeds
+				if(gene_ctr == len(gene_location)-1):
+					return match_ctr, len(set(genes_match))	
 
-			## if fragment is inside the gene region, we found a match!! else increment
-			if(gene_location[gene_ctr][0] <= (fragments[i][1]) and gene_location[gene_ctr][1] >= fragments[i][2]):
-				genes_match.append(gene_ctr) ## append the gene counter to a genes_match list
-				match_ctr += 1
-				break
-			else:
-				gene_ctr += 1
-				continue
+				## if fragment is inside the gene region, we found a match!! else increment
+				if(gene_location[gene_ctr][0] <= (fragments[i][1]) and gene_location[gene_ctr][1] >= fragments[i][2]):
+					genes_match.append(gene_ctr) ## append the gene counter to a genes_match list
+					match_ctr += 1
+					break
+				else:
+					gene_ctr += 1
+					continue
+		else:
+			break
 	return match_ctr, len(set(genes_match)) ## return count and num of unique
 
 def parse_input(input_name):
@@ -354,7 +357,7 @@ def parse_input(input_name):
 			new_genome_seq =""
 			new_genome_name = line
 		else:
-			new_genome_seq += line.strip().rstrip()	## strip whitespaces
+			new_genome_seq += line.upper().strip().rstrip()	## strip whitespaces
 	list_genome.append([new_genome_name,new_genome_seq])
 	return list_genome[1:]
 
@@ -411,8 +414,8 @@ def run_RE(enzyme):
 
 		coverage = cov_sel(frag_select, len(genome))
 		results.write(str(len(frag_select))+"\t")
-
-		results.write("%0.5f\t" % coverage)
+		results.write("%.3f\t" % (coverage*100))
+		
 		global lock
 		lock.acquire()
 		write_csv(genome_name, fragments, enzyme, len(genome))
@@ -463,17 +466,21 @@ def run_RE(enzyme):
 		if('annotation' in parsed):
 			genes = parsed['annotation'][genome_name]
 			hit_genes,hit_genes_unique = compare_gene(genes,frag_select)
-			
-		print(enzyme+'\t'+str(len(fragments))+'\t'+str(len(frag_select))+"\t"+str(uniq_count)+"\t"+str(rept_count)+"\t"+str(unique_repeats)+"\t"+str(hit_genes))
+				
+		percent_genes = 0.0
+		if(len(genes) > 0):
+			percent_genes = float(hit_genes_unique)*100/float(len(genes))
 
-		results.write("%d\t%0.5f" %(hit_genes,hit_genes_unique/float(len(genes))))
-		results.write(str())
+		results.write("%d\t%d\t%.3f" %(hit_genes,hit_genes_unique,percent_genes))
+
+		print("%s\t%d\t%d\t%.3f\t%d\t%d\t%d\t%d\t%d\t%.3f" %(enzyme, len(fragments), len(frag_select), coverage*100, uniq_count, rept_count, unique_repeats, hit_genes, hit_genes_unique, percent_genes))
 		results.write("\n")
 		results.close()
 
-	except:
+	except Exception as e:
 		print("Closing pool. Error occurred in %s with enzyme %s" % (genome_name, enzyme))
-		raise Exception("Closing pool. Error occurred in %s with enzyme %s" % (genome_name, enzyme))
+		print(e)
+		raise Exception("Closing pool. Error occurred in %s with enzyme %s" % (genome_name, enzyme),(coverage*100) )
 	return
 
 
@@ -512,7 +519,9 @@ def run_genome(REs,list_genomes):
 		try:
 			pool.map(run_RE,[enz for enz in REs])
 		except:
-			pass
+			pool.close()
+			pool.terminate()
+			raise SystemExit
 
 		## close, wait, and terminate the pool
 		pool.close()
@@ -552,12 +561,12 @@ if __name__ == '__main__':
 	parser.add_argument('-at', nargs='?', default='gene', help='what to look for in gene annotation file (ex. gene region, exon, intron, etc)')
 	parser.add_argument('-min', nargs='?', default=200, help='minimum fragment size (default 200)')
 	parser.add_argument('-max', nargs='?', default=300, help='maximum fragment size (default 300)')
-	parser.add_argument('-bp', nargs='?', default=100, help='base pair read lenght for FASTQ generation (default 100)')
+	parser.add_argument('-bp', nargs='?', default=100, help='base pair read length for FASTQ generation (default 100)')
 	parser.add_argument('-p', nargs='?', default='orig', help='radseq protocol: use ddrad for double digestion')
 	parser.add_argument('-gc', nargs='?', help='input gc frequency. Value must be between 0 and 1')
 	parser.add_argument('-dna', nargs='?', help='input dna estimated length')
 	parser.add_argument('-o', nargs='?', default='report', help='output file name')
-	parser.add_argument('-t', nargs='?', default='16', help='number of processes (default 16)')
+	parser.add_argument('-t', nargs='?', default='16', help='number of processes (default 4)')
 
 	args = parser.parse_args()
 
