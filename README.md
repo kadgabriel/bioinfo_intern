@@ -10,6 +10,10 @@
 **RApyDS** provides a detailed report and visualization of the simulated digestion. 
 
 
+### Documentation
+- For the [RApyDS program overview / documentation](docs/rapyds.pdf)
+- For the [full RApyDS program technical manual](docs/rapyds_manual.pdf)
+
 ### Requirements
 
 - Python 2.7 or greater
