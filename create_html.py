@@ -62,8 +62,8 @@ def create_overview():
 				results = result_line.strip().split("\t")
 				file_html.write("<tr>")
 				for i in range(len(results)):
-					if(i == 4 or i == 9):
-						file_html.write(table_def % results[i])
+					# if(i == 4 or i == 9):
+					file_html.write(table_def % results[i])
 				file_html.write("</tr>\n")
 
 		file_html.write("</tbody></table>")

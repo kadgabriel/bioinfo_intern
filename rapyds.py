@@ -441,7 +441,7 @@ def run_RE(enzyme):
 		output2.close()
 
 		## running of bwa shell script
-		shellscript = subprocess.Popen(["./bwa_aln.sh %s %s" % (args.i,enzyme.replace(' ', '-'))], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
+		shellscript = subprocess.Popen(["./bwa_aln.sh %s %s" % (args.i.split("/")[-1],enzyme.replace(' ', '-'))], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
 		shellscript.wait()
 		
 		unique_repeats = 0
@@ -612,7 +612,7 @@ if __name__ == '__main__':
 		try:
 			input_i  = open(args.i, "r+")
 			input_i.close()
-			shellscript = subprocess.Popen(["./bwa_index.sh %s" % args.i], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
+			shellscript = subprocess.Popen(["./bwa_index.sh %s %s" % (args.i, args.i.split("/")[-1])], shell=True, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, close_fds=True)
 			genome = parse_input(args.i)
 			shellscript.wait()			
 		except (OSError, IOError) as e:
@@ -677,7 +677,7 @@ if __name__ == '__main__':
 	importlib.import_module("create_html")
 	create_html.create_report(args.o)
 
-	## clean up folders created
+	# clean up folders created
 	if(os.path.exists("reads") == True):
 		shutil.rmtree("reads")
 

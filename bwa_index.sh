@@ -4,4 +4,4 @@ dir=$(cd -P -- "$(dirname -- "$0")" && pwd -P)
 rm -rf $dir/bwa
 mkdir $dir/bwa
 cd "$dir/bwa"
-bwa index -a bwtsw $dir/$1 -p $1
+bwa index -a bwtsw $dir/$1 -p $2
